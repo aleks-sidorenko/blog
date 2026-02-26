@@ -1,0 +1,26 @@
+base_url = "https://www.sidorenko.me"
+title = "Alexander Sidorenko"
+description = "Personal blog"
+default_language = "en"
+theme = "even"
+compile_sass = true
+build_search_index = false
+generate_feeds = true
+feed_filenames = ["atom.xml"]
+
+taxonomies = [
+    { name = "categories", feed = true },
+    { name = "tags", feed = true },
+]
+
+[markdown.highlighting]
+theme = "one-dark-pro"
+
+[extra]
+even_title = "Alexander Sidorenko"
+even_menu = [
+    { url = "$BASE_URL", name = "Home" },
+    { url = "$BASE_URL/categories", name = "Categories" },
+    { url = "$BASE_URL/tags", name = "Tags" },
+    { url = "$BASE_URL/about", name = "About" },
+]
