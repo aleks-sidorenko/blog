@@ -1,5 +1,5 @@
 base_url = "https://www.sidorenko.me"
-title = "Oleksandr Sidorenko"
+title = "Alexander Sidorenko"
 description = "Personal blog"
 default_language = "en"
 theme = "even"
@@ -17,7 +17,7 @@ taxonomies = [
 theme = "one-dark-pro"
 
 [extra]
-even_title = "Oleksandr Sidorenko"
+even_title = "Alexander Sidorenko"
 even_menu = [
     { url = "$BASE_URL", name = "Home" },
     { url = "$BASE_URL/categories", name = "Categories" },

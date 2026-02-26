@@ -73,11 +73,16 @@
         }
       );
 
+      formatter = forAllSystems ({ pkgs }: pkgs.nixfmt-rfc-style);
+
       devShells = forAllSystems (
         { pkgs }:
         {
           default = pkgs.mkShell {
-            packages = [ pkgs.zola ];
+            packages = [
+              pkgs.zola
+              pkgs.just
+            ];
           };
         }
       );

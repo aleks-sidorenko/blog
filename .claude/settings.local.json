@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /Users/oleksandrsy/Projects/Self/blog log --oneline -20)",
+      "Bash(git -C /Users/oleksandrsy/Projects/Self/blog branch:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
