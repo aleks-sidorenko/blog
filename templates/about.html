@@ -1,0 +1,15 @@
+{% extends "index.html" %}
+
+{% block content %}
+    <article class="post">
+        <header class="post__header">
+            <h1 class="post__title">{{ section.title }}</h1>
+        </header>
+        <div class="post__content">
+            {{ section.content | safe }}
+        </div>
+    </article>
+{% endblock content %}
+
+{% block pagination %}
+{% endblock pagination %}
