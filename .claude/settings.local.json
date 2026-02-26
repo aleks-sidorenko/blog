@@ -2,7 +2,22 @@
   "permissions": {
     "allow": [
       "Bash(git -C /Users/oleksandrsy/Projects/Self/blog log --oneline -20)",
-      "Bash(git -C /Users/oleksandrsy/Projects/Self/blog branch:*)"
+      "Bash(git -C /Users/oleksandrsy/Projects/Self/blog branch:*)",
+      "Skill(superpowers:brainstorming)",
+      "WebSearch",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Skill(superpowers:writing-plans)",
+      "Skill(superpowers:subagent-driven-development)",
+      "Bash(nix build:*)",
+      "Bash(git reset:*)",
+      "Bash(git restore:*)",
+      "Bash(git -C /Users/oleksandrsy/Projects/Self/blog log --oneline -5)",
+      "Bash(git -C /Users/oleksandrsy/Projects/Self/blog show a77db01 --stat)",
+      "Bash(test:*)",
+      "Bash(cat:*)",
+      "Bash(nix develop:*)",
+      "Bash(nix-store --delete:*)"
     ],
     "deny": [],
     "ask": []

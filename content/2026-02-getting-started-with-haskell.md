@@ -2,6 +2,7 @@
 title = "Getting Started with Haskell"
 date = 2026-02-26
 description = "A practical introduction to Haskell covering basic syntax, type signatures, pattern matching, and higher-order functions."
+path = "blog/2026/02/getting-started-with-haskell"
 [taxonomies]
 tags = ["haskell", "functional-programming", "tutorial"]
 categories = ["Functional Programming"]
