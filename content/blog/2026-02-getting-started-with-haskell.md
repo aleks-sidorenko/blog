@@ -5,7 +5,7 @@ description = "A practical introduction to Haskell covering basic syntax, type s
 path = "blog/2026/02/getting-started-with-haskell"
 [taxonomies]
 tags = ["haskell", "functional-programming", "tutorial"]
-categories = ["Functional Programming"]
+categories = ["programming"]
 +++
 
 Haskell is a purely functional programming language known for its strong static type system, lazy evaluation, and mathematical elegance. In this post, we will walk through the fundamentals that make Haskell a compelling choice for building reliable software.

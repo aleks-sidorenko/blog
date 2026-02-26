@@ -1,12 +1,12 @@
 +++
 title = "About"
-path = "about"
-date = 2026-02-26
+render = true
+template = "about.html"
 +++
 
-## Hi, I'm Oleksandr Sidorenko
+## Hi, I'm Alexander Sidorenko
 
-Software developer with a passion for functional programming, type systems, and reproducible builds.
+Software developer with a passion for functional programming, type systems, purity, referential transparency and reproducible builds.
 
 I work primarily with Haskell, Nix, and various functional programming tools. This blog is where I write about things I find interesting in the world of programming and technology.
 
@@ -19,7 +19,7 @@ I work primarily with Haskell, Nix, and various functional programming tools. Th
 
 ### Links
 
-- [GitHub](https://github.com/USERNAME)
-- [X (Twitter)](https://x.com/USERNAME)
-- [LinkedIn](https://linkedin.com/in/USERNAME)
-- Email: [your@email.com](mailto:your@email.com)
+- [GitHub](https://github.com/aleks-sidorenko)
+- [X (Twitter)](https://x.com/aleks_sidorenko)
+- [LinkedIn](https://linkedin.com/in/alekssidorenko)
+- Email: [aleks.sidorenko@gmail.com](mailto:aleks.sidorenko@gmail.com)
