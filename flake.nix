@@ -82,6 +82,7 @@
             packages = [
               pkgs.zola
               pkgs.just
+              pkgs.nodejs
             ];
           };
         }
