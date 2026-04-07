@@ -12,7 +12,7 @@ I've been building a Haskell library called [eventium](https://github.com/aleks-
 
 Event sourcing is one of those ideas that sounds straightforward until you try to implement it properly. State is derived from a sequence of events, not stored directly. That constraint forces clarity — but it also raises a lot of questions about how projections, commands, and aggregates should fit together.
 
-This post walks through building a small banking system using eventium [v0.2.1](https://github.com/aleks-sidorenko/eventium/tree/v0.2.1), covering each abstraction as we need it.
+This post walks through building a small banking system using `eventium` [v0.2.1](https://github.com/aleks-sidorenko/eventium/tree/v0.2.1), covering each abstraction as we need it.
 
 <!-- more -->
 
@@ -146,7 +146,7 @@ accountProjection :: Projection Account AccountEvent
 accountProjection = Projection accountDefault handleAccountEvent
 ```
 
-To actually reconstruct state from a sequence of events, eventium provides `latestProjection`:
+To actually reconstruct state from a sequence of events, `eventium` provides `latestProjection`:
 
 ```haskell
 latestProjection :: (Foldable t) => Projection state event -> t event -> state
@@ -154,7 +154,7 @@ latestProjection :: (Foldable t) => Projection state event -> t event -> state
 
 Give it a projection and any `Foldable` of events — a list, a sequence, whatever you have — and you get the current state back. No IO, no database round-trip, just a fold. This makes projections trivially testable: you can unit test your entire state reconstruction logic by passing in a list of events and asserting on the result. No test database needed, no mocking, no setup overhead.
 
-One other thing worth mentioning: `Projection` has a `Contravariant` instance on the event type. This is useful when you have two event types that are isomorphic — say, you're adapting a projection written for one sum type to work with another. You `contramap` over the event side to adapt the handler. For composing projections across multiple aggregates, eventium uses a different mechanism called `TypeEmbedding`, which we'll get to when we look at process managers.
+One other thing worth mentioning: `Projection` has a `Contravariant` instance on the event type. This is useful when you have two event types that are isomorphic — say, you're adapting a projection written for one sum type to work with another. You `contramap` over the event side to adapt the handler. For composing projections across multiple aggregates, `eventium` uses a different mechanism called `TypeEmbedding`, which we'll get to when we look at process managers.
 
 ## Command Handlers: Validating Intent
 
@@ -196,7 +196,7 @@ accountCommandHandler :: CommandHandler Account AccountEvent AccountCommand Acco
 accountCommandHandler = CommandHandler handleAccountCommand accountProjection
 ```
 
-To actually run a command against a stream, eventium provides `applyCommandHandler`. It loads the latest projected state from the event store, calls `decide`, and writes the resulting events back — using `ExactPosition` (a variant of `ExpectedPosition`) to implement optimistic concurrency. If another write landed on the same stream between the read and the write, the store rejects it. That conflict surfaces as a typed `CommandHandlerError`, not an exception.
+To actually run a command against a stream, `eventium` provides `applyCommandHandler`. It loads the latest projected state from the event store, calls `decide`, and writes the resulting events back — using `ExactPosition` (a variant of `ExpectedPosition`) to implement optimistic concurrency. If another write landed on the same stream between the read and the write, the store rejects it. That conflict surfaces as a typed `CommandHandlerError`, not an exception.
 
 A few things stand out about this design. `decide` being pure means the entire domain logic is testable without any IO — pass in a state and a command, assert on the `Either`. No mocking stores or spinning up databases. Optimistic concurrency means you never hold a lock while running business logic; conflicts are detected on write and returned as values. And the `err` type parameter keeps concerns separate at the type level: `InsufficientFunds` and `AccountNotOpen` live in `AccountCommandError`, while concurrency conflicts live in `CommandHandlerError`. The compiler makes sure you handle each appropriately.
 
@@ -250,7 +250,7 @@ The full transfer flow plays out in four steps:
 3. **Success:** target emits `AccountCreditedFromTransfer`, process manager reacts with `CompleteTransfer` on the source
 4. **Failure:** compensation fires, issuing `RejectTransfer` on the source account
 
-To actually execute these effects, eventium provides `runProcessManagerEffects`, which walks the effect list and dispatches each command via a `CommandDispatcher`. If a command with compensation gets rejected, it evaluates the compensation function and continues with the resulting effects.
+To actually execute these effects, `eventium` provides `runProcessManagerEffects`, which walks the effect list and dispatches each command via a `CommandDispatcher`. If a command with compensation gets rejected, it evaluates the compensation function and continues with the resulting effects.
 
 Two things make this design stand out compared to most event-sourcing libraries I've seen. First, `react` is pure data, not monadic. Most ES frameworks implement sagas or process managers as effectful state machines — you're in IO from the start, and testing means mocking half the world. Here, the entire saga decision tree is a pure function you can unit test by passing in a state and an event and asserting on the returned effects. No IO, no mocking.
 
@@ -260,7 +260,7 @@ Second, compensation is data, not a service. The failure handler lives right the
 
 Everything so far is the write side — command handlers produce events, projections reconstruct aggregate state. But what if you want to query across aggregates? "Show me all pending transfers" doesn't belong to any single account. There's no single event stream to fold over, and the aggregate projection only knows about its own events. You need a different mechanism: a read model.
 
-Read models in eventium are first-class values with their own type:
+Read models in `eventium` are first-class values with their own type:
 
 ```haskell
 data ReadModel m event = ReadModel
@@ -291,9 +291,9 @@ The three operations that drive read models:
 
 - `runReadModel` — runs forever, polling the global event stream at a configurable interval and feeding new events to the handler. This is the steady-state operation.
 - `rebuildReadModel` — calls `reset`, then replays all events from sequence number zero. One-shot, useful when you've changed the projection logic and need to regenerate the view.
-- `combineReadModels` — fans out from a single global stream subscription to multiple read models. Rather than subscribing once per read model, you subscribe once and let eventium dispatch to all of them.
+- `combineReadModels` — fans out from a single global stream subscription to multiple read models. Rather than subscribing once per read model, you subscribe once and let `eventium` dispatch to all of them.
 
-Most event-sourcing libraries leave this infrastructure to the user — you're on your own for checkpointing, for wiring up initialization, for deciding how to handle rebuilds. Eventium encodes all of it directly in the `ReadModel` type. Checkpointing, initialization, reset, and composition are built in and consistent across every read model in your system.
+Most event-sourcing libraries leave this infrastructure to the user — you're on your own for checkpointing, for wiring up initialization, for deciding how to handle rebuilds. `eventium` encodes all of it directly in the `ReadModel` type. Checkpointing, initialization, reset, and composition are built in and consistent across every read model in your system.
 
 ## Putting It All Together
 
