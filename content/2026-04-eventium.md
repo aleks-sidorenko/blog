@@ -321,3 +321,13 @@ accountBankCommandHandler =
 **Codecs** handle the serialization boundary. The bank example uses `deriveJSON` for the wire format — straightforward Aeson instances for each event type. But eventium also provides `lenientCodecProjection`, which skips unrecognized events instead of failing. This enables forward compatibility: you can add new event types to a stream without breaking existing consumers that haven't been updated to handle them yet.
 
 The theme across all of these is the same one we've seen in every layer: small, focused pieces that compose cleanly. A projection is just a fold. A command handler is a pure function plus a projection. A process manager is a pure function that returns effects. And the wiring layer — embeddings, dispatchers, publishers — snaps them together without requiring any of the pieces to know about each other. Each abstraction does one thing, and composition handles the rest.
+
+## Wrapping Up
+
+One thing I didn't mention: testing. Because `decide` and `react` are pure functions, your entire domain and saga logic is testable without any infrastructure. Pair that with the in-memory STM backend and you get fast, deterministic tests for the full write path — no database, no mocking, no test containers.
+
+There's also more in the library I didn't cover here: `ProjectionCache` for snapshotting aggregate state (avoids replaying all events on every command), and `EventSubscription` with resilient polling and retry for production read models that need to survive transient failures.
+
+The three backends — memory (STM), SQLite, and PostgreSQL — all expose the same interfaces. Swapping is a single constructor call at the application boundary.
+
+The full bank example is [on GitHub](https://github.com/aleks-sidorenko/eventium/tree/v0.2.1/examples/bank) if you want to see everything wired together. The library itself lives at [aleks-sidorenko/eventium](https://github.com/aleks-sidorenko/eventium). If you're building anything event-sourced in Haskell, give it a try — feedback welcome.
