@@ -106,16 +106,21 @@ data AccountTransferStarted = AccountTransferStarted
 --     AccountTransferFailed, AccountCreditedFromTransfer
 ```
 
-2. Explain TH sum type generation:
+2. Explain TH sum type generation with both naming conventions:
 ```haskell
+-- Aggregate-level: AppendTypeNameToTags
 constructSumType "AccountEvent"
   (withTagOptions AppendTypeNameToTags defaultSumTypeOptions)
   accountEvents
--- Generates: data AccountEvent
---   = AccountOpenedAccountEvent AccountOpened
---   | AccountCreditedAccountEvent AccountCredited
---   | ...
+-- Generates: AccountOpenedAccountEvent, AccountCreditedAccountEvent, ...
+
+-- Application-level: ConstructTagName
+constructSumType "BankEvent"
+  (withTagOptions (ConstructTagName (++ "Event")) defaultSumTypeOptions)
+  (accountEvents ++ customerEvents)
+-- Generates: AccountOpenedEvent, AccountCreditedEvent, ...
 ```
+Note: process manager code pattern-matches on `BankEvent` constructors (e.g., `AccountTransferStartedEvent`), not `AccountEvent` constructors.
 
 3. Command types (briefly list them, show 1-2):
 ```haskell
@@ -148,7 +153,12 @@ data AccountCommandError
 
 Inline note: sum types as natural fit for events + TH reducing boilerplate.
 
-- [ ] **Step 2: Commit**
+- [ ] **Step 2: Verify build with code blocks**
+
+Run: `cd /Users/oleksandrsy/Projects/Self/blog && nix develop --command zola build 2>&1 | grep -i error`
+Expected: No errors. This catches malformed code blocks early.
+
+- [ ] **Step 3: Commit**
 
 ```bash
 git add content/2026-04-eventium.md
@@ -191,7 +201,7 @@ accountProjection = Projection accountDefault handleAccountEvent
 
 3. `latestProjection` usage:
 ```haskell
-latestProjection :: Projection state event -> [event] -> state
+latestProjection :: (Foldable t) => Projection state event -> t event -> state
 ```
 
 Inline notes: pure fold (no IO), Contravariant instance for isomorphic event types, multi-aggregate uses TypeEmbedding (covered later).
