@@ -255,3 +255,42 @@ To actually execute these effects, eventium provides `runProcessManagerEffects`,
 Two things make this design stand out compared to most event-sourcing libraries I've seen. First, `react` is pure data, not monadic. Most ES frameworks implement sagas or process managers as effectful state machines — you're in IO from the start, and testing means mocking half the world. Here, the entire saga decision tree is a pure function you can unit test by passing in a state and an event and asserting on the returned effects. No IO, no mocking.
 
 Second, compensation is data, not a service. The failure handler lives right there in the `ProcessManagerEffect` type — it's part of the value you return from `react`. There's no separate "compensation service" to register, no rollback handler to wire up, no hope that the right callback is connected to the right failure mode. The compiler sees it all.
+
+## Read Models: Queryable Views
+
+Everything so far is the write side — command handlers produce events, projections reconstruct aggregate state. But what if you want to query across aggregates? "Show me all pending transfers" doesn't belong to any single account. There's no single event stream to fold over, and the aggregate projection only knows about its own events. You need a different mechanism: a read model.
+
+Read models in eventium are first-class values with their own type:
+
+```haskell
+data ReadModel m event = ReadModel
+  { initialize :: m ()
+  , eventHandler :: EventHandler m (GlobalStreamEvent event)
+  , checkpointStore :: CheckpointStore m SequenceNumber
+  , reset :: m ()
+  }
+```
+
+The type is parametric over the monad `m` — it's backend-agnostic by design. The bank example uses SQL, but nothing in the type forces that choice. You could back a read model with Redis, an in-memory `TVar`, or anything else that fits `m`.
+
+Here's the actual transfers read model from the bank example:
+
+```haskell
+transferReadModel :: ReadModel (SqlPersistT IO) BankEvent
+transferReadModel = ReadModel
+  { initialize = void $ runMigrationSilent migrateTransfer
+  , eventHandler = EventHandler handleTransferEvent
+  , checkpointStore = sqliteCheckpointStore (CheckpointName "transfers")
+  , reset = deleteWhere ([] :: [Filter TransferEntity])
+  }
+```
+
+Each field has a clear job. `initialize` runs the database migrations on startup, ensuring the transfers table exists before anything tries to write to it. `eventHandler` processes events arriving from the global stream and updates the read model accordingly — in this case, inserting and updating rows in the transfers table. `checkpointStore` tracks the last sequence number successfully processed, so on restart the model picks up where it left off rather than replaying from the beginning. `reset` wipes the table entirely, which matters for the rebuild case.
+
+The three operations that drive read models:
+
+- `runReadModel` — runs forever, polling the global event stream at a configurable interval and feeding new events to the handler. This is the steady-state operation.
+- `rebuildReadModel` — calls `reset`, then replays all events from sequence number zero. One-shot, useful when you've changed the projection logic and need to regenerate the view.
+- `combineReadModels` — fans out from a single global stream subscription to multiple read models. Rather than subscribing once per read model, you subscribe once and let eventium dispatch to all of them.
+
+Most event-sourcing libraries leave this infrastructure to the user — you're on your own for checkpointing, for wiring up initialization, for deciding how to handle rebuilds. Eventium encodes all of it directly in the `ReadModel` type. Checkpointing, initialization, reset, and composition are built in and consistent across every read model in your system.
