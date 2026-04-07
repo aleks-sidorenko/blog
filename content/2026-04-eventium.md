@@ -27,3 +27,88 @@ CQRS builds on this by splitting the write and read sides entirely. The write si
 For workflows that span multiple aggregates — things like "open an account, then fund it, then notify a downstream service" — there are process managers. They listen to events from one aggregate and issue commands to others, coordinating multi-step flows without coupling the aggregates directly.
 
 That's the conceptual skeleton. Let's see how this looks in practice by building a bank.
+
+## The Domain: A Banking System
+
+We're modeling bank accounts that can be opened, credited, debited, and transfer money between each other. Nothing exotic — but rich enough that real patterns emerge.
+
+Events come first. Each one is a plain record describing something that happened:
+
+```haskell
+data AccountOpened = AccountOpened
+  { owner :: UUID
+  , initialFunding :: Double
+  }
+
+data AccountDebited = AccountDebited
+  { amount :: Double
+  , reason :: String
+  }
+
+data AccountTransferStarted = AccountTransferStarted
+  { transferId :: UUID
+  , amount :: Double
+  , targetAccount :: UUID
+  }
+```
+
+There are others — `AccountCredited`, `AccountTransferCompleted`, `AccountTransferFailed`, `AccountCreditedFromTransfer` — but they follow the same shape. One record per thing that can happen.
+
+Now, aggregates and process managers need to work with a closed set of events, so we need sum types. Eventium provides Template Haskell utilities for generating them. At the aggregate level:
+
+```haskell
+constructSumType "AccountEvent"
+  (withTagOptions AppendTypeNameToTags defaultSumTypeOptions)
+  accountEvents
+-- Generates: AccountOpenedAccountEvent AccountOpened
+--          | AccountCreditedAccountEvent AccountCredited
+--          | ...
+```
+
+And at the application level, where events from multiple aggregates are combined:
+
+```haskell
+constructSumType "BankEvent"
+  (withTagOptions (ConstructTagName (++ "Event")) defaultSumTypeOptions)
+  (accountEvents ++ customerEvents)
+-- Generates: AccountOpenedEvent AccountOpened
+--          | ...
+```
+
+Sum types are a natural fit for events — each constructor represents one thing that happened, and the compiler ensures you handle every case. The TH utilities just reduce the boilerplate of writing these by hand. You'll see the `BankEvent` constructors (like `AccountTransferStartedEvent`) later when we get to process managers.
+
+Commands describe intent. Here's one:
+
+```haskell
+data TransferToAccount = TransferToAccount
+  { transferId :: UUID
+  , amount :: Double
+  , targetAccount :: UUID
+  }
+```
+
+The rest — `OpenAccount`, `CreditAccount`, `DebitAccount`, `AcceptTransfer`, `CompleteTransfer`, `RejectTransfer` — are similarly straightforward.
+
+The aggregate state tracks what we need for validation:
+
+```haskell
+data Account = Account
+  { balance :: Double
+  , owner :: Maybe UUID
+  , pendingTransfers :: [PendingAccountTransfer]
+  }
+```
+
+The `Maybe UUID` for `owner` is doing double duty — `Nothing` means the account hasn't been opened yet. Simple, but it works.
+
+And the error type for when commands are rejected:
+
+```haskell
+data AccountCommandError
+  = AccountAlreadyOpen
+  | InvalidInitialDeposit
+  | InsufficientFunds Double
+  | AccountNotOpen
+```
+
+There's also a `Customer` aggregate alongside `Account` — we'll see how they compose later. For now, let's focus on how these pieces wire together.
