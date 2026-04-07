@@ -199,3 +199,59 @@ accountCommandHandler = CommandHandler handleAccountCommand accountProjection
 To actually run a command against a stream, eventium provides `applyCommandHandler`. It loads the latest projected state from the event store, calls `decide`, and writes the resulting events back — using `ExpectedPosition` to implement optimistic concurrency. If another write landed on the same stream between the read and the write, the store rejects it. That conflict surfaces as a typed `CommandHandlerError`, not an exception.
 
 A few things stand out about this design. `decide` being pure means the entire domain logic is testable without any IO — pass in a state and a command, assert on the `Either`. No mocking stores or spinning up databases. Optimistic concurrency means you never hold a lock while running business logic; conflicts are detected on write and returned as values. And the `err` type parameter keeps concerns separate at the type level: `InsufficientFunds` and `AccountNotOpen` live in `AccountCommandError`, while concurrency conflicts live in `CommandHandlerError`. The compiler makes sure you handle each appropriately.
+
+## Process Managers: Coordinating Transfers
+
+Everything so far happens within a single aggregate. One stream of events, one command handler, one projection — all scoped to a single account. But a bank transfer debits one account and credits another. Those are two separate aggregates, each with their own stream and their own consistency boundary. You can't just reach into both in the same command handler. They need to be coordinated, and that's where process managers come in.
+
+A process manager watches events from across the system and reacts by issuing commands. Here's the type:
+
+```haskell
+data ProcessManager state event command = ProcessManager
+  { projection :: Projection state (VersionedStreamEvent event)
+  , react :: state -> VersionedStreamEvent event -> [ProcessManagerEffect command]
+  }
+```
+
+The projection tracks whatever state the process manager needs to make decisions — in our case, which transfers are in flight. The interesting part is `react`: it takes the current state and a new event, and returns a list of effects. It's a pure function. No monadic IO, no database calls, just state and event in, effects out.
+
+Those effects are where things get clever:
+
+```haskell
+data ProcessManagerEffect command
+  = IssueCommand UUID command
+  | IssueCommandWithCompensation UUID command
+      (RejectionReason -> [ProcessManagerEffect command])
+```
+
+`IssueCommand` is straightforward — send this command to this aggregate. But `IssueCommandWithCompensation` carries a function: if the command gets rejected, here's what to do about it. The compensation logic is encoded right there in the type, not in some separate rollback service you have to wire up and hope stays in sync.
+
+Here's the key excerpt from the transfer process manager's `react` function:
+
+```haskell
+reactTransfer manager (StreamEvent sourceAcct _ _ (AccountTransferStartedEvent evt))
+  | isNothing (Map.lookup evt.transferId manager.transferData) =
+      [ IssueCommandWithCompensation
+          evt.targetAccount
+          (AcceptTransferCommand AcceptTransfer { ... })
+          (\(RejectionReason reason) ->
+              [ IssueCommand sourceAcct
+                  (RejectTransferCommand RejectTransfer { ... })
+              ])
+      ]
+```
+
+When the process manager sees a transfer started, it issues `AcceptTransfer` to the target account. If that command fails — maybe the target account is closed — the compensation function fires and issues `RejectTransfer` back on the source account. The entire decision tree is right there in one expression.
+
+The full transfer flow plays out in four steps:
+
+1. `TransferToAccount` command on the source account emits `AccountTransferStarted`
+2. The process manager reacts by issuing `AcceptTransfer` on the target account, with compensation attached
+3. **Success:** target emits `AccountCreditedFromTransfer`, process manager reacts with `CompleteTransfer` on the source
+4. **Failure:** compensation fires, issuing `RejectTransfer` on the source account
+
+To actually execute these effects, eventium provides `runProcessManagerEffects`, which walks the effect list and dispatches each command via a `CommandDispatcher`. If a command with compensation gets rejected, it evaluates the compensation function and continues with the resulting effects.
+
+Two things make this design stand out compared to most event-sourcing libraries I've seen. First, `react` is pure data, not monadic. Most ES frameworks implement sagas or process managers as effectful state machines — you're in IO from the start, and testing means mocking half the world. Here, the entire saga decision tree is a pure function you can unit test by passing in a state and an event and asserting on the returned effects. No IO, no mocking.
+
+Second, compensation is data, not a service. The failure handler lives right there in the `ProcessManagerEffect` type — it's part of the value you return from `react`. There's no separate "compensation service" to register, no rollback handler to wire up, no hope that the right callback is connected to the right failure mode. The compiler sees it all.
