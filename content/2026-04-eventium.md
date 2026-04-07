@@ -294,3 +294,30 @@ The three operations that drive read models:
 - `combineReadModels` — fans out from a single global stream subscription to multiple read models. Rather than subscribing once per read model, you subscribe once and let eventium dispatch to all of them.
 
 Most event-sourcing libraries leave this infrastructure to the user — you're on your own for checkpointing, for wiring up initialization, for deciding how to handle rebuilds. Eventium encodes all of it directly in the `ReadModel` type. Checkpointing, initialization, reset, and composition are built in and consistent across every read model in your system.
+
+## Putting It All Together
+
+We've built all the individual pieces — projections, command handlers, process managers, read models. Now comes the wiring. Eventium's composition story is built around a few key mechanisms that let you snap everything together without losing type safety.
+
+**TypeEmbedding** is how you compose across aggregates. We have `AccountEvent` and `AccountCommand` at the aggregate level, but the application works with `BankEvent` and `BankCommand`. The Template Haskell utilities generate the embedding:
+
+```haskell
+mkSumTypeEmbedding "accountEventEmbedding" ''AccountEvent ''BankEvent
+mkSumTypeEmbedding "accountCommandEmbedding" ''AccountCommand ''BankCommand
+
+accountBankCommandHandler :: CommandHandler Account BankEvent BankCommand AccountCommandError
+accountBankCommandHandler =
+  embeddedCommandHandler accountEventEmbedding accountCommandEmbedding accountCommandHandler
+```
+
+`embeddedCommandHandler` lifts an aggregate-specific handler to work with the application-wide types. Events and commands that don't belong to this aggregate are silently skipped — no exceptions, no partial matches. The account handler simply ignores customer events and returns `Right []` for customer commands. This is what makes composition safe: each handler only sees what it understands.
+
+**Command dispatching** follows naturally. `commandHandlerDispatcher` routes application-wide commands to the right aggregate handler. Since each embedded handler returns `Right []` for non-matching commands, the dispatcher just tries each handler in sequence — account handler, customer handler — and collects the results. No routing table, no command-to-handler mapping to maintain.
+
+**Event publishing** closes the loop between the write side and everything downstream. `publishingEventStoreWriter` wraps a store writer to auto-dispatch events to process managers and read models after successful writes. You create a publisher from an `EventHandler` using `synchronousPublisher`, and the store writer takes care of the rest. When a command handler writes events, the transfer process manager and the read models all see them without any manual plumbing.
+
+**Backend swapping** is where the polymorphic monad design pays off. The same domain code — command handlers, projections, process managers — works with in-memory STM stores, SQLite, or PostgreSQL. You pick the store constructor at the application boundary. In tests, you use `stmEventStoreWriter` and `stmStreamProjectionStore`. In production, swap in the SQL variants. The backend is a deployment decision, not an architectural one.
+
+**Codecs** handle the serialization boundary. The bank example uses `deriveJSON` for the wire format — straightforward Aeson instances for each event type. But eventium also provides `lenientCodecProjection`, which skips unrecognized events instead of failing. This enables forward compatibility: you can add new event types to a stream without breaking existing consumers that haven't been updated to handle them yet.
+
+The theme across all of these is the same one we've seen in every layer: small, focused pieces that compose cleanly. A projection is just a fold. A command handler is a pure function plus a projection. A process manager is a pure function that returns effects. And the wiring layer — embeddings, dispatchers, publishers — snaps them together without requiring any of the pieces to know about each other. Each abstraction does one thing, and composition handles the rest.
