@@ -38,18 +38,20 @@ No code. Concepts only:
 
 Close with: "Let's see how this looks in practice by building a bank."
 
-### 3. Domain Model (~300 words)
+### 3. Domain Model (~350 words)
 
-Introduce the bank domain with Haskell types:
+Introduce the bank domain with Haskell types.
+
+**Presentation strategy:** Show events and commands as individual record types (as they are in the source), then explain that eventium provides Template Haskell to generate sum types (`constructSumType`) that wrap them — e.g., `AccountOpenedAccountEvent`, `OpenAccountAccountCommand`. Show simplified versions for readability and note the TH convention.
 
 **Show:**
-- `AccountEvent` — sum type: `AccountOpened`, `AccountCredited`, `AccountDebited`, `AccountTransferStarted`, `AccountTransferCompleted`, `AccountTransferFailed`, `AccountCreditedFromTransfer`
-- `AccountCommand` — sum type: `OpenAccount`, `CreditAccount`, `DebitAccount`, `StartTransfer`, `CompleteTransfer`
-- `AccountState` — record: balance, owner, pending transfers
+- Individual event types: `AccountOpened`, `AccountCredited`, `AccountDebited`, `AccountTransferStarted`, `AccountTransferCompleted`, `AccountTransferFailed`, `AccountCreditedFromTransfer`
+- Individual command types: `OpenAccount`, `CreditAccount`, `DebitAccount`, `TransferToAccount`, `AcceptTransfer`, `CompleteTransfer`, `RejectTransfer`
+- `Account` state record: `balance :: Double`, `owner :: Maybe UUID` (encodes "not yet opened"), `pendingTransfers :: [PendingAccountTransfer]`
 - `AccountError` — domain validation errors (insufficient funds, account not open, etc.)
-- Brief mention of `Customer` aggregate existing alongside, but post focuses on `Account`
+- Mention the `Customer` aggregate existing alongside — this pays off in Section 8 when showing `commandHandlerDispatcher` routing commands to multiple aggregates
 
-**Inline note:** Sum types are a natural fit for events — each constructor represents one thing that happened, the compiler ensures you handle them all.
+**Inline note:** Sum types are a natural fit for events — each constructor represents one thing that happened, the compiler ensures you handle them all. Eventium's TH utilities reduce the boilerplate of defining the sum type + codec by hand.
 
 ### 4. Projections (~300 words)
 
@@ -101,7 +103,11 @@ Motivating problem: "A transfer debits one account and credits another. These mu
     = IssueCommand UUID command
     | IssueCommandWithCompensation UUID command (RejectionReason -> [ProcessManagerEffect command])
   ```
-- Transfer flow: `AccountTransferStarted` triggers credit to target → on failure, compensate by completing transfer with failed status
+- Full four-step transfer flow:
+  1. `TransferToAccount` on source account emits `AccountTransferStarted`
+  2. Process manager reacts: issues `AcceptTransfer` on target account (with compensation)
+  3. Success path: target emits `AccountCreditedFromTransfer`, process manager reacts with `CompleteTransfer` on source
+  4. Failure path: compensation issues `RejectTransfer` on source account
 
 **Inline notes:**
 - Key differentiator: `react` is pure data, not monadic. The entire saga decision tree is testable without IO
@@ -129,19 +135,22 @@ Motivate: "Command handlers and projections give us the write side. How do we qu
 - Read models are first-class in eventium — checkpointing, initialization, reset, and composition built in
 - Most ES libraries leave read model infrastructure to the user
 
-### 8. Wiring It Together (~250 words)
+### 8. Wiring It Together (~350 words)
 
 **Show:**
+- `TypeEmbedding` — the mechanism for multi-aggregate composition. Show how `AccountEvent`/`AccountCommand` are embedded into application-wide `BankEvent`/`BankCommand` via `mkSumTypeEmbedding`, then used with `embeddedCommandHandler` and `embeddedProjection`. This is how aggregate-specific types compose into a unified application.
 - `EventStoreWriter` / `EventStoreReader` — parametric over key, position, monad, event
-- `publishingEventStoreWriter` — wraps store to auto-dispatch events to process managers and read models after writes
-- `commandHandlerDispatcher` — routes commands to the right aggregate
+- `EventPublisher` and `publishingEventStoreWriter` — wraps store to auto-dispatch events to process managers and read models after writes. `synchronousPublisher` creates a publisher from an `EventHandler` for in-process dispatch.
+- `commandHandlerDispatcher` — routes `BankCommand` to the right aggregate handler (Account or Customer). Show how this uses `TypeEmbedding` to try each handler — non-matching commands return `Right []`, no exceptions.
 - Backend swapping: same domain code with in-memory (STM), SQLite, or PostgreSQL — just different store constructors
+- Brief mention of `Codec` — how events are serialized to JSON for persistence. `jsonCodec` + `eventSumTypeCodec` handle the wire format. Lenient codecs (`lenientCodecProjection`) skip unrecognized events, enabling forward compatibility.
 
 **Inline note:** Polymorphic monad design means backend is a deployment decision, not an architectural one.
 
 ### 9. Closing (~100 words)
 
 - Testing: pure `decide` and `react` + in-memory store = fast tests, no infrastructure
+- Production features not covered in detail: `ProjectionCache` for snapshotting, `EventSubscription` with resilient polling and retry
 - Available backends: memory, SQLite, PostgreSQL
 - Link to repo and full bank example
 - Invite readers to try it
@@ -157,6 +166,7 @@ Motivate: "Command handlers and projections give us the write side. How do we qu
 - Conversational but technical tone, first person
 - Type signatures prominently featured
 - ~2500-3000 words total (medium-form, matching existing posts)
+- Code snippets use simplified types for readability, with a note that the actual bank example uses TH-generated sum types with longer constructor names
 
 ## File
 
