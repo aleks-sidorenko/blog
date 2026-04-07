@@ -42,7 +42,7 @@ Close with: "Let's see how this looks in practice by building a bank."
 
 Introduce the bank domain with Haskell types.
 
-**Presentation strategy:** Show events and commands as individual record types (as they are in the source), then explain that eventium provides Template Haskell to generate sum types (`constructSumType`) that wrap them — e.g., `AccountOpenedAccountEvent`, `OpenAccountAccountCommand`. Show simplified versions for readability and note the TH convention.
+**Presentation strategy:** Show events and commands as individual record types (as they are in the source), then explain that eventium provides Template Haskell to generate sum types (`constructSumType`) that wrap them. Note the two TH naming conventions: aggregate-level uses `AppendTypeNameToTags` (producing `AccountOpenedAccountEvent`), while application-level uses `ConstructTagName` (producing `AccountOpenedEvent` in `BankEvent`). Show simplified versions for readability but mention the actual naming so readers can follow the source.
 
 **Show:**
 - Individual event types: `AccountOpened`, `AccountCredited`, `AccountDebited`, `AccountTransferStarted`, `AccountTransferCompleted`, `AccountTransferFailed`, `AccountCreditedFromTransfer`
@@ -68,7 +68,7 @@ Introduce the bank domain with Haskell types.
 
 **Inline notes:**
 - Projections are pure folds — no IO, trivially testable
-- `Contravariant` instance allows adapting event types for multi-aggregate contexts
+- `Contravariant` instance allows adapting between isomorphic event types (multi-aggregate composition uses `TypeEmbedding` instead — covered in Section 8)
 
 ### 5. Command Handlers (~350 words)
 
@@ -81,7 +81,7 @@ Introduce the bank domain with Haskell types.
     }
   ```
 - Bank's `decide` function — validation logic (check balance for debits, transfer limits, account must be open)
-- `applyCommandHandler` — loads projection from store, calls `decide`, writes atomically
+- `applyCommandHandler` — loads projection from store, calls `decide`, writes with optimistic concurrency (`ExactPosition`)
 
 **Inline notes:**
 - `decide` is pure: state + command in, either error or events out. Entire domain logic testable without mocking stores
@@ -128,7 +128,7 @@ Motivate: "Command handlers and projections give us the write side. How do we qu
     , reset :: m ()
     }
   ```
-- Bank's `Transfers` read model — SQL table tracking transfer lifecycle, built by consuming the global event stream
+- Bank's `Transfers` read model — in this example, a SQL table tracking transfer lifecycle, built by consuming the global event stream. Note that `ReadModel` itself is backend-agnostic (parametric over monad `m`) — the SQL choice is the example's, not the abstraction's.
 - `runReadModel` for long-running subscription, `rebuildReadModel` for replay, `combineReadModels` for fan-out
 
 **Inline notes:**
@@ -143,7 +143,7 @@ Motivate: "Command handlers and projections give us the write side. How do we qu
 - `EventPublisher` and `publishingEventStoreWriter` — wraps store to auto-dispatch events to process managers and read models after writes. `synchronousPublisher` creates a publisher from an `EventHandler` for in-process dispatch.
 - `commandHandlerDispatcher` — routes `BankCommand` to the right aggregate handler (Account or Customer). Show how this uses `TypeEmbedding` to try each handler — non-matching commands return `Right []`, no exceptions.
 - Backend swapping: same domain code with in-memory (STM), SQLite, or PostgreSQL — just different store constructors
-- Brief mention of `Codec` — how events are serialized to JSON for persistence. `jsonCodec` + `eventSumTypeCodec` handle the wire format. Lenient codecs (`lenientCodecProjection`) skip unrecognized events, enabling forward compatibility.
+- Brief mention of `Codec` — how events are serialized to JSON for persistence. The bank example uses TH-generated embeddings + aeson `deriveJSON` for wire format. Eventium also provides a `Generic`-based alternative via `EventSumType` / `eventSumTypeCodec`. Lenient codecs (`lenientCodecProjection`) skip unrecognized events, enabling forward compatibility.
 
 **Inline note:** Polymorphic monad design means backend is a deployment decision, not an architectural one.
 
