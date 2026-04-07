@@ -2,7 +2,7 @@
 title = "Event Sourcing in Haskell with Eventium"
 date = 2026-04-07
 description = "A walkthrough of eventium, a typed and composable event-sourcing library for Haskell — building a banking system step by step."
-path = "blog/2026/04/eventium"
+path = "blog/2026/04/eventium-event-sourcing-library-for-haskell"
 [taxonomies]
 tags = ["haskell", "functional-programming", "event-sourcing"]
 categories = ["programming"]
