@@ -112,3 +112,46 @@ data AccountCommandError
 ```
 
 There's also a `Customer` aggregate alongside `Account` — we'll see how they compose later. For now, let's focus on how these pieces wire together.
+
+## Projections: Rebuilding State from Events
+
+The central abstraction for state reconstruction is `Projection`:
+
+```haskell
+data Projection state event = Projection
+  { seed :: state
+  , eventHandler :: state -> event -> state
+  }
+```
+
+`seed` is the initial state before any events have been applied. `eventHandler` takes the current state and one event, and returns the next state. That's it — a `Projection` is just a fold specification, packaged up as a first-class value.
+
+For the banking domain, the event handler for `Account` looks like this:
+
+```haskell
+handleAccountEvent :: Account -> AccountEvent -> Account
+handleAccountEvent account (AccountOpenedAccountEvent evt) =
+  account { owner = Just evt.owner, balance = evt.initialFunding }
+handleAccountEvent account (AccountCreditedAccountEvent evt) =
+  account { balance = account.balance + evt.amount }
+handleAccountEvent account (AccountDebitedAccountEvent evt) =
+  account { balance = account.balance - evt.amount }
+-- ... transfer events update pendingTransfers
+```
+
+Each case is a direct translation of "what does this event mean for the state". Debits subtract, credits add, opening an account sets the owner and seeds the balance. The transfer cases are a bit more involved — they push to and pop from `pendingTransfers` — but the pattern is the same. Then we wire it together:
+
+```haskell
+accountProjection :: Projection Account AccountEvent
+accountProjection = Projection accountDefault handleAccountEvent
+```
+
+To actually reconstruct state from a sequence of events, eventium provides `latestProjection`:
+
+```haskell
+latestProjection :: (Foldable t) => Projection state event -> t event -> state
+```
+
+Give it a projection and any `Foldable` of events — a list, a sequence, whatever you have — and you get the current state back. No IO, no database round-trip, just a fold. This makes projections trivially testable: you can unit test your entire state reconstruction logic by passing in a list of events and asserting on the result. No test database needed, no mocking, no setup overhead.
+
+One other thing worth mentioning: `Projection` has a `Contravariant` instance on the event type. This is useful when you have two event types that are isomorphic — say, you're adapting a projection written for one sum type to work with another. You `contramap` over the event side to adapt the handler. For composing projections across multiple aggregates, eventium uses a different mechanism called `TypeEmbedding`, which we'll get to when we look at process managers.
