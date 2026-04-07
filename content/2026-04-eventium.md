@@ -155,3 +155,47 @@ latestProjection :: (Foldable t) => Projection state event -> t event -> state
 Give it a projection and any `Foldable` of events — a list, a sequence, whatever you have — and you get the current state back. No IO, no database round-trip, just a fold. This makes projections trivially testable: you can unit test your entire state reconstruction logic by passing in a list of events and asserting on the result. No test database needed, no mocking, no setup overhead.
 
 One other thing worth mentioning: `Projection` has a `Contravariant` instance on the event type. This is useful when you have two event types that are isomorphic — say, you're adapting a projection written for one sum type to work with another. You `contramap` over the event side to adapt the handler. For composing projections across multiple aggregates, eventium uses a different mechanism called `TypeEmbedding`, which we'll get to when we look at process managers.
+
+## Command Handlers: Validating Intent
+
+A projection tells you how to reconstruct state. A command handler tells you what to do with it. The type that ties the two together is `CommandHandler`:
+
+```haskell
+data CommandHandler state event command err = CommandHandler
+  { decide :: state -> command -> Either err [event]
+  , projection :: Projection state event
+  }
+```
+
+`decide` is where all the domain logic lives. It's a pure function — current state and an incoming command go in, either a rejection error or a list of new events comes out. The handler bundles `decide` with a `Projection` so it knows how to rebuild state before making that call. Nothing else is needed.
+
+For the banking domain, the interesting cases in `handleAccountCommand` are the ones with real validation to do:
+
+```haskell
+handleAccountCommand :: Account -> AccountCommand -> Either AccountCommandError [AccountEvent]
+handleAccountCommand account (OpenAccountAccountCommand cmd) =
+  case account.owner of
+    Just _ -> Left AccountAlreadyOpen
+    Nothing ->
+      if cmd.initialFunding < 0
+        then Left InvalidInitialDeposit
+        else Right [AccountOpenedAccountEvent AccountOpened { ... }]
+handleAccountCommand account (TransferToAccountAccountCommand cmd)
+  | isNothing account.owner = Left AccountNotOpen
+  | accountAvailableBalance account - cmd.amount < 0 =
+      Left $ InsufficientFunds $ accountAvailableBalance account
+  | otherwise = Right [AccountTransferStartedAccountEvent AccountTransferStarted { ... }]
+```
+
+Opening an account checks whether one is already open, then validates the initial deposit. Initiating a transfer checks that the account exists and that the available balance — after accounting for any in-flight transfers — covers the amount. The `{ ... }` record fields are elided here to keep the focus on validation logic rather than plumbing. The pattern is the same throughout: inspect state, reject with a typed error or return a list of events.
+
+Wiring it up is one line:
+
+```haskell
+accountCommandHandler :: CommandHandler Account AccountEvent AccountCommand AccountCommandError
+accountCommandHandler = CommandHandler handleAccountCommand accountProjection
+```
+
+To actually run a command against a stream, eventium provides `applyCommandHandler`. It loads the latest projected state from the event store, calls `decide`, and writes the resulting events back — using `ExpectedPosition` to implement optimistic concurrency. If another write landed on the same stream between the read and the write, the store rejects it. That conflict surfaces as a typed `CommandHandlerError`, not an exception.
+
+A few things stand out about this design. `decide` being pure means the entire domain logic is testable without any IO — pass in a state and a command, assert on the `Either`. No mocking stores or spinning up databases. Optimistic concurrency means you never hold a lock while running business logic; conflicts are detected on write and returned as values. And the `err` type parameter keeps concerns separate at the type level: `InsufficientFunds` and `AccountNotOpen` live in `AccountCommandError`, while concurrency conflicts live in `CommandHandlerError`. The compiler makes sure you handle each appropriately.
