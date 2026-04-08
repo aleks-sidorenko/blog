@@ -21,6 +21,43 @@
 
       <title>{% block title %}{{ config.title }}{% endblock title %}</title>
 
+      <!-- Open Graph -->
+      <meta property="og:site_name" content="{{ config.title }}">
+    {% if page %}
+      <meta property="og:title" content="{{ page.title }}">
+      <meta property="og:type" content="article">
+      <meta property="og:url" content="{{ page.permalink | safe }}">
+      {% if page.description %}
+      <meta property="og:description" content="{{ page.description }}">
+      {% endif %}
+      {% if page.date %}
+      <meta property="article:published_time" content="{{ page.date }}">
+      {% endif %}
+      {% if page.taxonomies.tags %}
+        {% for tag in page.taxonomies.tags %}
+      <meta property="article:tag" content="{{ tag }}">
+        {% endfor %}
+      {% endif %}
+    {% else %}
+      <meta property="og:title" content="{{ config.title }}">
+      <meta property="og:type" content="website">
+      <meta property="og:url" content="{{ config.base_url | safe }}">
+      <meta property="og:description" content="{{ config.description }}">
+    {% endif %}
+
+      <!-- Twitter Card -->
+      <meta name="twitter:card" content="summary">
+      <meta name="twitter:site" content="@aleks_sidorenko">
+    {% if page %}
+      <meta name="twitter:title" content="{{ page.title }}">
+      {% if page.description %}
+      <meta name="twitter:description" content="{{ page.description }}">
+      {% endif %}
+    {% else %}
+      <meta name="twitter:title" content="{{ config.title }}">
+      <meta name="twitter:description" content="{{ config.description }}">
+    {% endif %}
+
       {% if config.generate_feeds %}
           {% for feed in config.feed_filenames %}
           <link rel="alternate" type={% if feed == "atom.xml" %}"application/atom+xml"{% else %}"application/rss+xml"{% endif %} title="RSS" href="{{ get_url(path=feed) | safe }}">
