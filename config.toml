@@ -1,6 +1,6 @@
 base_url = "https://www.sidorenko.me"
 title = "Alexander Sidorenko"
-description = "Personal blog"
+description = "Blog about Haskell, Nix, functional programming, and type systems by Alexander Sidorenko"
 default_language = "en"
 theme = "even"
 compile_sass = true
