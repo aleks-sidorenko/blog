@@ -8,7 +8,7 @@ tags = ["haskell", "functional-programming", "event-sourcing"]
 categories = ["programming"]
 +++
 
-In the [previous post](@/2026-04-eventium-event-sourcing-library-for-haskell.md), I walked through building a banking system with [eventium](https://github.com/aleks-sidorenko/eventium) — covering projections, command handlers, process managers, and read models from the user's perspective. This post goes one layer deeper: how the event store is structured, what guarantees it provides, and why things are built the way they are.
+In the [previous post](@/blog/2026-04-eventium-event-sourcing-library-for-haskell.md), I walked through building a banking system with [eventium](https://github.com/aleks-sidorenko/eventium) — covering projections, command handlers, process managers, and read models from the user's perspective. This post goes one layer deeper: how the event store is structured, what guarantees it provides, and why things are built the way they are.
 
 Each section opens with a problem that arises when you try to build a production event store, then shows how eventium addresses it and what tradeoffs that involves.
 
@@ -516,4 +516,4 @@ The recurring theme across all of these decisions is that each one is a tradeoff
 
 Eventium picks a side on each of these and makes the choice visible in the types and the API rather than hiding it behind "smart" defaults. `ExpectedPosition` is a value you construct, not a flag buried in configuration. `MetadataEnricher` is a function you compose, not a magic annotation. `ProjectionCache` is a record you pass in, not an implicit layer. When something goes wrong, you can see exactly what was configured and why.
 
-The [previous post](@/2026-04-eventium-event-sourcing-library-for-haskell.md) covers the user-facing side — projections, command handlers, process managers, read models. The library itself is at [aleks-sidorenko/eventium](https://github.com/aleks-sidorenko/eventium). Feedback and contributions are welcome.
+The [previous post](@/blog/2026-04-eventium-event-sourcing-library-for-haskell.md) covers the user-facing side — projections, command handlers, process managers, read models. The library itself is at [aleks-sidorenko/eventium](https://github.com/aleks-sidorenko/eventium). Feedback and contributions are welcome.
