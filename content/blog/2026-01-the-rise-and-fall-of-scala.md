@@ -1,8 +1,8 @@
 +++
 title = "The Rise and Fall of Scala"
-date = 2026-02-15
+date = 2026-01-15
 description = "After almost a decade of writing Scala, I reflect on why the best language I've ever used is losing the battle — and where I'm heading next."
-path = "blog/2026/02/the-rise-and-fall-of-scala"
+path = "blog/2026/01/the-rise-and-fall-of-scala"
 [taxonomies]
 tags = ["scala", "haskell", "functional-programming", "jvm"]
 categories = ["programming"]

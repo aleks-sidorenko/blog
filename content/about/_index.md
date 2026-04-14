@@ -4,15 +4,16 @@ render = true
 template = "about.html"
 +++
 
-## Hi, I'm Alexander Sidorenko
+## Hi, I'm Alexander
 
-Software developer with a passion for functional programming, type systems, purity, referential transparency and reproducible builds.
+Software engineer with a passion for functional programming, type systems, purity, referential transparency, reproducible builds and infrustructure-as-code.
 
-I work primarily with Haskell, Nix, and various functional programming tools. This blog is where I write about things I find interesting in the world of programming and technology.
+I am professional software engineer for more than 20 years.
+I work primarily with Scala, Haskell, Nix, and various functional programming tools. This blog is where I write about things I find interesting in the world of programming and technology.
 
 ### Interests
 
-- **Functional Programming** — Haskell, type theory, category theory
+- **Functional Programming** — Scala, Haskell, type theory, category theory
 - **Nix Ecosystem** — NixOS, Nix flakes, reproducible builds
 - **System Design** — Distributed systems, scalability patterns
 - **AI & Developer Tools** — LLMs, AI-assisted development
