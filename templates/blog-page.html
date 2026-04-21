@@ -1,9 +1,16 @@
 {% extends "page.html" %}
 
 {% block page_before_footer %}
+{%- set tweet_text = page.title ~ " " ~ page.permalink -%}
+{%- if page.taxonomies.tags -%}
+  {%- for tag in page.taxonomies.tags -%}
+    {%- set hashtag = tag | replace(from="-", to=" ") | title | replace(from=" ", to="") -%}
+    {%- set_global tweet_text = tweet_text ~ " #" ~ hashtag -%}
+  {%- endfor -%}
+{%- endif -%}
 <div class="post-share" aria-label="Share this post">
   <a class="post-share__btn"
-     href="https://twitter.com/intent/tweet?url={{ page.permalink | urlencode }}&text={{ page.title | urlencode }}&via={{ config.extra.twitter_handle }}"
+     href="https://twitter.com/intent/tweet?text={{ tweet_text | urlencode }}"
      target="_blank" rel="noopener noreferrer"
      aria-label="Share on Twitter" title="Share on Twitter">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
