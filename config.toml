@@ -18,6 +18,7 @@ theme = "one-dark-pro"
 
 [extra]
 even_title = "Alexander Sidorenko"
+twitter_handle = "aleks_sidorenko"
 even_menu = [
     { url = "$BASE_URL", name = "Home" },
     { url = "$BASE_URL/categories", name = "Categories" },
