@@ -11,6 +11,7 @@ Personal blog at [www.sidorenko.me](https://www.sidorenko.me), built with [Zola]
 - **Nix Flake** — reproducible builds, dev environment
 - **GitHub Actions** — CI/CD pipeline
 - **GitHub Pages** — hosting with custom domain
+- **Giscus** — post comments backed by GitHub Discussions
 
 ## Development
 

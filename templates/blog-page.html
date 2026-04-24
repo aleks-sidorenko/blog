@@ -79,6 +79,12 @@
 .post-share__copy.is-copied .post-share__copied {
   opacity: 1;
 }
+.post-comments {
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(128, 128, 128, 0.2);
+  min-height: 200px; /* reserve space to prevent CLS when the lazy iframe resolves */
+}
 </style>
 
 <script>
@@ -93,4 +99,24 @@
   });
 })();
 </script>
+{% if page.extra.comments is not defined or page.extra.comments %}
+<section class="post-comments" aria-label="Comments">
+  <script src="https://giscus.app/client.js"
+          data-repo="aleks-sidorenko/blog"
+          data-repo-id="MDEwOlJlcG9zaXRvcnk1NjY3ODk5NA=="
+          data-category="Blog Comments"
+          data-category-id="DIC_kwDOA2DaUs4C7nvJ"
+          data-mapping="pathname"
+          data-strict="0"
+          data-reactions-enabled="1"
+          data-emit-metadata="0"
+          data-input-position="bottom"
+          data-theme="light"
+          data-lang="en"
+          data-loading="lazy"
+          crossorigin="anonymous"
+          async>
+  </script>
+</section>
+{% endif %}
 {% endblock page_before_footer %}
