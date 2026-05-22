@@ -51,7 +51,72 @@ I'll bring back the `Payment` from Part 1 when we need a type with record shape;
 
 ## The vocabulary: Eq, Show, Ord, and friends
 
-<!-- TODO: The simplest type classes first. Cats Eq/Show/Order and Scala 3 derives → Haskell deriving (Eq, Show, Ord). Where the equivalences are 1:1, where Cats adds laws and Haskell ships them silently in the Prelude. Bring back Payment for a tiny Eq/Ord/Show example. -->
+The simplest type classes are the ones nobody argues about. You want to print a value, compare two of them for equality, sort a list. Both languages have type classes for all three; both call them the same things. This is where the comparison is most boring — which is exactly why it's a good place to start. The boring parts make the interesting parts more visible.
+
+### The Prelude versus Cats
+
+In Haskell, `Eq`, `Show`, and `Ord` live in the `Prelude` — imported into every module by default. The laws (`(==)` is reflexive, `compare` is total, `show` produces something parseable in a non-binding way) are spelled out in the `base` library documentation, and every type that derives them is expected to honor them.
+
+In Scala, the situation is _two stacks_. The language has its own `==`, `hashCode`, `toString`, `Comparable`, and `Ordering` — inherited from Java, defined on `Any`, lawless. Cats then layers `cats.Eq`, `cats.Show`, `cats.Order` on top of those, with proper laws, with `===` and `=!=` and `compare` as typed operations, and with the law-checking machinery in `cats.kernel.laws`. The Cats classes are a re-export of the Haskell vocabulary into a JVM library, because the JVM standard library got there first with a worse version.
+
+This isn't subtle. Cats is literally trying to give Scala what `Prelude` gives Haskell, as a library, because the language couldn't make it the default without breaking every existing program written to `Any.equals`.
+
+### Deriving the basics
+
+Take a `Payment` from Part 1:
+
+```scala
+import cats.{Eq, Show, Order}
+import cats.syntax.all.*
+
+enum Currency:
+  case USD, EUR, UAH
+
+object Currency:
+  given Eq[Currency]   = Eq.fromUniversalEquals
+  given Show[Currency] = Show.fromToString
+
+case class Payment(id: String, amount: BigDecimal, currency: Currency)
+
+object Payment:
+  given Eq[Payment]   = Eq.fromUniversalEquals
+  given Show[Payment] = Show.fromToString
+  given Order[Payment] with
+    def compare(a: Payment, b: Payment): Int =
+      a.amount.compare(b.amount)
+```
+
+In Haskell:
+
+```haskell
+data Currency = USD | EUR | UAH
+  deriving (Show, Eq, Ord)
+
+data Payment = Payment
+  { paymentId :: String
+  , amount    :: Double
+  , currency  :: Currency
+  } deriving (Show, Eq)
+
+instance Ord Payment where
+  compare a b = compare (amount a) (amount b)
+```
+
+The Scala block is exactly how Cats wants you to do this. Companion-object givens, one `Eq.fromUniversalEquals` per type, one `Show.fromToString`, and a hand-written `Order` because the auto-derived ordering would compare structurally — not what we want here. Scala 3's `derives` keyword can shorten the first part to `derives Eq, Show` for types whose Cats class supports it; in Cats 2.10, `Eq` and `Show` don't ship a `derived` method, so you write the `given`s anyway, or you bring in `kittens`. `derives` plus `kittens` is the modern path. It is also one more dependency.
+
+The Haskell block does all of the same work in the `deriving` clauses of the data declarations themselves. `Eq`, `Show`, and the default `Ord` are derived structurally; you write the one custom `Ord` you actually want. There are no companion objects, no `given` boilerplate, no imports beyond the `Prelude`, no library to pin to a version, and no decision about which derivation flavor to use until we get to `DerivingVia` later in this post.
+
+The whole apparatus that Scala has bolted onto its case classes — `equals`, `hashCode`, `Ordering`, plus Cats's `Eq`, `Show`, `Order` sitting on top — is in Haskell one keyword on one line.
+
+### `==` versus `===`
+
+The reason Cats introduced `===` in the first place is that Scala 2's `==` was universally typed. `1 == "true"` compiled, returned `false`, and gave you a small heartbreak when the bug landed in production. Cats's `===` requires an `Eq[A]` for both sides, so any cross-type comparison fails at compile time. The Scala community has spent over a decade typing five extra characters to avoid this.
+
+Scala 3 has been chipping away at it. As of 3.4, comparing a primitive with a reference type — `1 == "1"` — is a compile error, no opt-in needed. Cross-type comparison between unrelated case classes still compiles and still returns `false`; closing that gap broadly is what `strictEquality` does opt-in, and what `===` does in Cats. When the language work is finished, `===` ends up being the same thing the language operator already is.
+
+Haskell never had the problem. `(==) :: Eq a => a -> a -> Bool` has been the signature since 1989. There is no universal equality; the only equality is the one the type class defines, and the only types you can compare with `==` are types whose `Eq` instance is in scope. The discipline Cats had to add as a library, and that Scala 3 is slowly making default, is in Haskell the only option that has ever existed.
+
+So: same names, same shape, same job. The interesting question is what they cost you to use — and the answer for the basics is "five lines of `given`s per type in Scala, zero lines in Haskell." That answer scales up as the type classes get less basic, which is the rest of the post.
 
 ## From `given`/`using` to `class`/`instance`
 
