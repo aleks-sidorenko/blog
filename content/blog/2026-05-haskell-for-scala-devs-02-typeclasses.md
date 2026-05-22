@@ -10,7 +10,7 @@ categories = ["programming"]
 
 Part 1 was the friendly part of the comparison. Functions, ADTs, options, newtypes — Scala does these well, Haskell does them a hair better, the gap is small. This post is where the gap stops being a hair.
 
-Implicits in Scala have an origin story that I think gets understated. They are not "a way to thread context through your code" — that's how we use them, but it's not what they're _for_. Implicits were Scala's mechanism for doing the work of Haskell's type classes inside a language that doesn't have them. The design lineage runs straight back to Wadler, who co-authored the original Haskell type-class paper in 1989 and then, two decades later, co-authored the paper that put implicits in Scala. The mechanism was reverse-engineered backwards from the Haskell feature it was meant to imitate.
+Implicits in Scala have an origin story that I think gets understated. They are not "a way to thread context through your code" — that's how we use them, but it's not what they're _for_. Implicits were Scala's mechanism for doing the work of Haskell's type classes inside a language that doesn't have them. Wadler and Blott published the original Haskell type-class paper in 1989; Odersky designed Scala's implicit-parameter machinery explicitly so the same shape of code could be written on the JVM. The mechanism was reverse-engineered backwards from the Haskell feature it was meant to imitate.
 
 Scala 3's `given` / `using` is the cleanup. With the benefit of every Scala-incoherence horror story the community has accumulated, the language renamed the keywords, narrowed the resolution rules, and tried to hide the implicit-conversion footguns that were eating juniors alive. It is much better than what it replaced. And it is still trying to be a thing that Haskell already is.
 
@@ -47,7 +47,7 @@ data Outcome a
 
 Two things to flag before we go further. First, the failure side carries a `List[String]` rather than a single error — that matters later, when the `Applicative` instance will _accumulate_ those reasons across independent computations and the `Monad` instance won't. The tension between those two instances is the only deliberately interesting bit in the type. Second, the Haskell version derives `Functor` right there in the data declaration; the Scala version cannot, and the instance has to be hand-written downstream. Hold onto that — it's foreshadowing.
 
-I'll bring back the `Payment` from Part 1 when we need a type with record shape; `Outcome` is for the part of the post where we're watching the abstraction get wired up.
+I'll bring back the `Payment` from Part 1 when we need a type with record shape; `Outcome` is for the part of the post where we're watching the abstraction get wired up. Three sections of apparatus first — naming, lookup, and HKTs. Then we install the instances on `Outcome` and watch the language disagree with itself.
 
 ## The vocabulary: Eq, Show, Ord, and friends
 
@@ -391,13 +391,7 @@ ko = do
 
 Scala's `for { x <- ... }` desugars to `flatMap` / `map` / `withFilter`. Haskell's `do { x <- ... }` desugars to `(>>=)` / `return`. The translations are mechanical. The same `for`-block runs over `Option`, `Either`, `List`, `IO`, `Outcome`, any type whose `Monad` instance is in scope; the same `do`-block runs over any Haskell `Monad`. The notation is the same shape because the abstraction underneath is the same shape.
 
-### A word on laws
-
-Both languages document the laws — `Functor` identity and composition, `Applicative` identity / homomorphism / interchange / composition, `Monad` left-identity / right-identity / associativity. Both rely on the implementer to honor them. Both let you write instances that don't.
-
-The difference, when it shows up, is that Haskell's coherence guarantee makes a broken instance more dangerous (it's broken _everywhere_ in your program) and also more findable (`quickcheck-classes` is a one-line test you can drop into any package). Cats ships `cats-laws` for the same job, but you wire it up explicitly. Different mechanics, same discipline.
-
-And `IO` is a `Monad` in both languages — `do { x <- readLine; putStrLn x }` is the same shape as `for { x <- IO.readLine; _ <- IO.println(x) } yield ()`. That's where Part 3 starts.
+Both languages document the laws — `Functor` identity and composition, `Applicative` identity / homomorphism / interchange / composition, `Monad` left-identity / right-identity / associativity. Both rely on the implementer to honor them, both let you write instances that don't, and both ship a way to test that you haven't (`cats-laws` and `quickcheck-classes`, respectively). The difference, when it shows up, is that Haskell's coherence guarantee makes a broken instance more dangerous — it's broken _everywhere_ in your program — and also more findable, because the single-instance rule means there's exactly one place to fix. And `IO` is a `Monad` in both languages: `do { line <- getLine; putStrLn line }` is the same shape as `for { line <- IO.readLine; _ <- IO.println(line) } yield ()`. That's where Part 3 starts.
 
 ## Deriving: from `derives` to `deriving via`
 
@@ -462,5 +456,7 @@ Part 5 goes deeper — `GHC.Generics` is the engine underneath `stock` derivatio
 The thesis at the top was that implicits started life as a way to do Haskell's type-class job inside a language that didn't have type classes. We've now seen it land in six places. `Eq`, `Show`, `Ord` — same names, same shape, the language has the words and you write the boilerplate. `given` / `using` versus `class` / `instance` — five different lookup paths versus one. Coherence — Scala silently picks a winner, Haskell forbids the ambiguity at the cost of policing orphans. HKTs — both languages had to invent the syntax; Haskell needed less of it. `Functor` / `Applicative` / `Monad` — same hierarchy, same laws, same `do` / `for` sugar over the same `>>=` / `flatMap`. Deriving — Scala bolts it on through libraries, Haskell ships three first-class strategies plus `DerivingVia`, which has no Scala equivalent at all.
 
 The throughline is the one from the top: every cleanup in this list is something Scala 3 is in the middle of, that Haskell shipped a long time ago and built the rest of the ecosystem around. The cleanups will land in Scala. The ecosystem will take longer to catch up.
+
+Two things this post deliberately did not weigh. One is the platform — the JVM is a real reason to write Scala, not because of language features. Java interop, the GraalVM AOT story, the existing fleet of people who know how to run JVMs in production: these are not parts of the type-class comparison, and Haskell has its own answers, mostly worse on operational tooling and often better on the small-binary deployment side. The other is the developer experience — IntelliJ understands Scala in ways that no Haskell IDE currently understands Haskell. HLS has gotten remarkable, but Scala still wins on autocomplete-through-implicits in a way that matters for hour-by-hour productivity. Neither of those changes the conclusions about the abstractions; both of them change which language is the right pick for a given team. Worth saying once, before the rest of the series presses harder on the abstractions.
 
 Part 3 is about `IO`. Cats Effect, ZIO, `Future`, and the thing all three are translating into the JVM: Haskell's `IO`, with referential transparency built in, `Resource` and `bracket` for cleanup, `STM` for shared state, and `async` for everything that `Future` was supposed to be. It's the post where the comparison stops being about apparatus and starts being about whether the JVM was ever the right host language for the abstractions we've been pricing out here.
