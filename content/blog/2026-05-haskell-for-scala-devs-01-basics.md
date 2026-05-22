@@ -18,8 +18,6 @@ This first post is the easy one. Functions, data, pattern matching, options, new
 
 If you've never written a line of Haskell at all, [Getting Started with Haskell](@/blog/2026-02-getting-started-with-haskell.md) is a friendlier starting point than this post — read that first, then come back.
 
-A note on what this post does _not_ cover. Type classes, implicits, and `given`/`using` get their own post (Part 2). Effects, `IO`, `Resource`, and the `Future`-versus-`IO` argument are Part 3. Anything OOP-shaped — inheritance, traits as mixins, encapsulation, mutable state — is Part 4. Optics, derivation, and macros land in Part 5. Variance, GADTs, type families, and dependent types wait until Part 6. If a topic feels obviously skipped here, that's why.
-
 ## The anchor: a tiny payment model
 
 Most of the post is built on one example, so let's introduce it early. A payment with an id, an amount, a currency, and a status — pending, settled, or failed with a reason. Two operations: settle it, and apply a percentage discount.
