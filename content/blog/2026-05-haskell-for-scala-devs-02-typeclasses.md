@@ -401,7 +401,61 @@ And `IO` is a `Monad` in both languages — `do { x <- readLine; putStrLn x }` i
 
 ## Deriving: from `derives` to `deriving via`
 
-<!-- TODO: Scala 3 `derives` and Shapeless typeclass derivation → Haskell `deriving`, `DerivingStrategies`, `DerivingVia`. One worked example with a newtype reusing an instance via `DerivingVia` (matching Part 1's Score/Sum example). One paragraph on why deriving is so much more usable in Haskell. One-line forward link: "Part 5 goes deeper — generics, Shapeless's heir, Template Haskell, the lot." -->
+We've already used `deriving` a half-dozen times in this post and in Part 1 without remarking on it. It's time to remark.
+
+In Scala 3, the syntax is:
+
+```scala
+case class Payment(id: String, amount: BigDecimal)
+  derives CanEqual
+```
+
+`derives X` is a Scala 3 keyword that tells the compiler "look for `X.derived` and use it to construct an instance." `CanEqual` from `scala.CanEqual` provides one, so `derives CanEqual` works out of the box. Cats's `Eq`, `Show`, `Functor` do not, in cats-core 2.10 — you bring in `kittens` (the deriving sibling library) or write the `given`s by hand, as we did in the Vocabulary section. `Magnolia` and `shapeless` are the older derivation engines; the modern story is `derives` plus `kittens`. The Shapeless-as-machinery era is winding down with Scala 3.
+
+The Haskell equivalent is in the data declaration itself, and is older than most Scala features:
+
+```haskell
+{-# LANGUAGE DerivingStrategies #-}
+
+data Payment = Payment { paymentId :: String, amount :: Double }
+  deriving stock (Show, Eq)
+```
+
+`stock` is one of three strategies you can ask GHC to use, opt-in via the `DerivingStrategies` pragma. `stock` is "compiler writes the instance based on the type's structure" — what you get for `Show`, `Eq`, `Ord`, `Functor`, `Foldable`, `Traversable`, `Generic`. `newtype` is "the wrapper borrows its underlying type's instance," at zero runtime cost, for any class at all:
+
+```haskell
+newtype Cents = Cents Int
+  deriving stock (Show, Eq)
+  deriving newtype (Num, Ord)
+```
+
+`Cents 5 + Cents 3` is `Cents 8`. The `Num` instance from `Int` is reused as-is, and the type discipline of the newtype stays intact — you can't accidentally pass an `Int` where a `Cents` is wanted. Scala has no built-in equivalent. Scala 3's opaque types (Part 1) are zero-cost wrappers but can't reuse the underlying type's instances; you re-declare each one in the module where the underlying representation is visible. `kittens` and clever derivation libraries can shorten this for stdlib classes. For user-defined classes you write the instance again.
+
+The third strategy is `anyclass`, which says "use the class's default-method definitions to derive the instance" — useful when a class is designed for it, rarer than `stock` or `newtype` in practice.
+
+Then there is `DerivingVia`, which we touched on briefly in Part 1 and which has no equivalent in Scala. The idea: borrow an instance not from the underlying type, but from a "deputy" newtype that already has the instance you actually want.
+
+```haskell
+{-# LANGUAGE DerivingVia #-}
+import Data.Monoid (Sum(..))
+
+newtype Bracketed a = Bracketed a
+instance Pretty a => Pretty (Bracketed a) where
+  pretty (Bracketed a) = "[" ++ pretty a ++ "]"
+
+newtype Score = Score Int
+  deriving stock (Show, Eq)
+  deriving (Semigroup, Monoid) via (Sum Int)
+  deriving Pretty              via (Bracketed Int)
+```
+
+`Score 1 <> Score 2` is `Score 3` — the `Sum Int` newtype's `Semigroup` instance combines by adding, and the `via (Sum Int)` clause tells the compiler that `Score`'s `Semigroup` should behave the same way. `pretty (Score 7)` is `"[Int(7)]"` — the `Bracketed Int` instance wraps the underlying `Pretty Int` output in brackets, and `via (Bracketed Int)` says that's what `Pretty Score` should mean.
+
+`Bracketed` is the deputy. It exists for the sole purpose of carrying that "wrap in brackets" `Pretty` instance, available to any type that can be coerced to its representation. This is a feature Cats developers spend years asking for: the ability to say "I want this instance, _but_ derived this way, not that way." Haskell ships it as a one-line declaration.
+
+The takeaway: in Scala, deriving is a language feature still maturing through libraries. Each Cats class needs a derivation library to plug into the `derives` keyword. Each new pattern — DerivingVia-style instance reuse, generic JSON encodings, ORM mappings — requires its own library design. In Haskell, the compiler was built around the assumption that you'd want this. `stock` derives the obvious instances for the obvious classes. `newtype` is one keyword. `DerivingVia` is two. The ecosystem _starts_ from "your types should mostly write themselves" and lets you opt out where you want hand-tuned behavior.
+
+Part 5 goes deeper — `GHC.Generics` is the engine underneath `stock` derivation, Template Haskell is the metaprogramming back door, and the comparison to Scala 3's `inline` / `quotes` macros is its own essay.
 
 ## Where this is going
 
