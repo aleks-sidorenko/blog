@@ -14,7 +14,30 @@ categories = ["programming"]
 
 ## A small anchor for the abstract bits
 
-<!-- TODO: Introduce the custom type Outcome (or final choice from Task 2) used for the Functor/Applicative/Monad walkthrough later. Show its Scala 3 form and Haskell form. Reuse the Payment domain from Part 1 wherever a "real-shaped" example is needed. -->
+Most of the comparisons in this post are cleaner with a small type we've written ourselves. Stdlib types like `Either` or `Option` have their instances baked in by the language; you can't see the seams. To watch how a `Functor`, an `Applicative`, and a `Monad` actually get installed on a type — and where Haskell and Scala disagree about what that even means — we need something we control.
+
+Call it `Outcome`. It's a two-case sum: either we have a valid value, or we have a list of reasons we don't. Roughly the shape of Cats's `Validated`.
+
+In Scala 3:
+
+```scala
+enum Outcome[+A]:
+  case Invalid(reasons: List[String])
+  case Valid(value: A)
+```
+
+In Haskell:
+
+```haskell
+data Outcome a
+  = Invalid [String]
+  | Valid a
+  deriving (Show, Eq, Functor)
+```
+
+Two things to flag before we go further. First, the failure side carries a `List[String]` rather than a single error — that matters later, when the `Applicative` instance will _accumulate_ those reasons across independent computations and the `Monad` instance won't. The tension between those two instances is the only deliberately interesting bit in the type. Second, the Haskell version derives `Functor` right there in the data declaration; the Scala version cannot, and the instance has to be hand-written downstream. Hold onto that — it's foreshadowing.
+
+I'll bring back the `Payment` from Part 1 when we need a type with record shape; `Outcome` is for the part of the post where we're watching the abstraction get wired up.
 
 ## The vocabulary: Eq, Show, Ord, and friends
 
