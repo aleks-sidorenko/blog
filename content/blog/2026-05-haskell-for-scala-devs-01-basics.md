@@ -534,6 +534,8 @@ The thesis at the top was that Scala's case classes and sealed traits are alread
 
 None of this is the punchline of the series. It's the place where the comparison is most flattering to Scala — because Scala has been getting these things right for a long time, and Haskell's lead here is honestly small. If you've already trained your hands on case classes and sealed traits, picking up the equivalent Haskell forms is more like noticing where the friction was than learning a new toolkit. The interesting parts of the series come next.
 
-Part 2 is about type classes and implicits — the place Scala has always been trying to do a thing Haskell does natively, and where Scala 3's `given`/`using` is finally close enough to compare cleanly. After that: effects and concurrency, OOP-as-encoded-elsewhere (or not encoded at all), optics and metaprogramming, and the type-system deep end. The further we go, the more the gap shows. The format is the same as this post — anchor example, side-by-side code, every snippet checked against a compiler before it lands here.
+[Part 2](@/blog/2026-05-haskell-for-scala-devs-02-typeclasses.md) is about type classes and implicits — the place Scala has always been trying to do a thing Haskell does natively, and where Scala 3's `given`/`using` is finally close enough to compare cleanly. After that: effects and concurrency, OOP-as-encoded-elsewhere (or not encoded at all), optics and metaprogramming, and the type-system deep end. The further we go, the more the gap shows. The format is the same as this post — anchor example, side-by-side code, every snippet checked against a compiler before it lands here.
 
 If you read this far and the only thought is _"yeah, none of that is news,"_ — good. That's the whole point of starting here.
+
+_Next in series: [Part 2 — Type Classes and Implicits](@/blog/2026-05-haskell-for-scala-devs-02-typeclasses.md)._
