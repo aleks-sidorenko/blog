@@ -459,4 +459,8 @@ Part 5 goes deeper — `GHC.Generics` is the engine underneath `stock` derivatio
 
 ## Where this is going
 
-<!-- TODO: One short closing paragraph restating the thesis in past tense. One paragraph forward-pointer to Part 3 (Effects and Concurrency). NO hyperlink — Part 3 doesn't exist yet. Plain prose. A follow-up task (after Part 3 ships) will swap this for a link. -->
+The thesis at the top was that implicits started life as a way to do Haskell's type-class job inside a language that didn't have type classes. We've now seen it land in six places. `Eq`, `Show`, `Ord` — same names, same shape, the language has the words and you write the boilerplate. `given` / `using` versus `class` / `instance` — five different lookup paths versus one. Coherence — Scala silently picks a winner, Haskell forbids the ambiguity at the cost of policing orphans. HKTs — both languages had to invent the syntax; Haskell needed less of it. `Functor` / `Applicative` / `Monad` — same hierarchy, same laws, same `do` / `for` sugar over the same `>>=` / `flatMap`. Deriving — Scala bolts it on through libraries, Haskell ships three first-class strategies plus `DerivingVia`, which has no Scala equivalent at all.
+
+The throughline is the one from the top: every cleanup in this list is something Scala 3 is in the middle of, that Haskell shipped a long time ago and built the rest of the ecosystem around. The cleanups will land in Scala. The ecosystem will take longer to catch up.
+
+Part 3 is about `IO`. Cats Effect, ZIO, `Future`, and the thing all three are translating into the JVM: Haskell's `IO`, with referential transparency built in, `Resource` and `bracket` for cleanup, `STM` for shared state, and `async` for everything that `Future` was supposed to be. It's the post where the comparison stops being about apparatus and starts being about whether the JVM was ever the right host language for the abstractions we've been pricing out here.
