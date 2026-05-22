@@ -8,9 +8,19 @@ tags = ["haskell", "scala", "functional-programming", "haskell-for-scala-devs"]
 categories = ["programming"]
 +++
 
-<!-- TODO: Opening framing — 3–4 paragraphs. Backlink to Part 1. State the thesis: implicits were a workaround on the JVM, given/using is the cleanup, Haskell's type classes are the thing they were always trying to be. End on a one-paragraph map of the post. -->
+Part 1 was the friendly part of the comparison. Functions, ADTs, options, newtypes — Scala does these well, Haskell does them a hair better, the gap is small. This post is where the gap stops being a hair.
+
+Implicits in Scala have an origin story that I think gets understated. They are not "a way to thread context through your code" — that's how we use them, but it's not what they're _for_. Implicits were Scala's mechanism for doing the work of Haskell's type classes inside a language that doesn't have them. The design lineage runs straight back to Wadler, who co-authored the original Haskell type-class paper in 1989 and then, two decades later, co-authored the paper that put implicits in Scala. The mechanism was reverse-engineered backwards from the Haskell feature it was meant to imitate.
+
+Scala 3's `given` / `using` is the cleanup. With the benefit of every Scala-incoherence horror story the community has accumulated, the language renamed the keywords, narrowed the resolution rules, and tried to hide the implicit-conversion footguns that were eating juniors alive. It is much better than what it replaced. And it is still trying to be a thing that Haskell already is.
+
+That's the post. Less ceremony, fewer footguns, no implicit-conversion magic, instance coherence by default. We'll walk it from the simplest case — `Eq`, `Show`, `Ord`, same words and same job in both languages — through resolution and coherence, through the type-system feature both languages had to invent for this (HKTs), through the `Functor`/`Applicative`/`Monad` ladder on our own type, and out the back via `deriving`. I'll assume you can read Cats fluently. I'm not going to re-teach the abstractions.
+
+_Previous in series: [Part 1 — Functions and Data](@/blog/2026-05-haskell-for-scala-devs-01-basics.md)._
 
 <!-- more -->
+
+A note on what this post does _not_ cover. Effects, `IO`, and the `Future`-versus-`IO` argument are Part 3. Anything OOP-shaped — inheritance, traits as mixins, encapsulation, mutable state, the full module-system comparison — is Part 4. Optics, the deeper derivation story, and Template Haskell versus Scala 3 macros land in Part 5. Variance, GADTs, type families, refinement types, and the dependent-type adjacencies wait until Part 6. The basics — functions, ADTs, `Option`/`Either`, newtypes — were Part 1. If a topic feels conspicuously skipped here, that's where it lives.
 
 ## A small anchor for the abstract bits
 
