@@ -229,7 +229,42 @@ Scala 3 made the opposite bet. It accepts that multiple `given`s may be in scope
 
 ## Higher-kinded types
 
-<!-- TODO: `F[_]` → `f`. Why both languages need it. One use site (a tiny generic helper). One sentence about kinds (`* -> *`), one mention of `:k`, then move on. Defer variance/Contravariant/roles to Part 6. -->
+Both Scala and Haskell had to invent syntax for a particular kind of type — the kind whose values are themselves "containers" or "contexts" parameterized over another type. `List` of what? `Option` of what? `IO` returning what? You can write a function that doesn't care what's inside, but only if the language has a way to abstract over the wrapper.
+
+Scala spells it `F[_]`:
+
+```scala
+def sequence[F[_]: Applicative, A](fs: List[F[A]]): F[List[A]]
+```
+
+Haskell uses a lowercase type variable in a position where the compiler can tell you mean a one-hole type constructor:
+
+```haskell
+sequence :: Applicative f => [f a] -> f [a]
+```
+
+These are the same signature. Both `F[_]` and `f` mean "any type that has one hole left in it" — `List`, `Maybe` / `Option`, `IO`, `Either e` (with the `e` already filled), our `Outcome` from earlier. The syntactic difference exists because Scala has to disambiguate: lowercase `f` in Scala is just a value name. Haskell, where type variables and value names live in separate namespaces, gets the "lowercase means variable" convention for free, and the _kind_ of the variable is inferred from where you use it.
+
+`sequence` is the canonical demonstration. It takes a list of "context-wrapped" values and pivots them into a single context wrapping a list of values. Concretely:
+
+```scala
+val xs: List[Option[Int]] = List(Some(1), Some(2), Some(3))
+xs.sequence              // Some(List(1, 2, 3))
+
+val ys: List[Option[Int]] = List(Some(1), None, Some(3))
+ys.sequence              // None
+```
+
+```haskell
+sequence [Just 1, Just 2, Just 3]    -- Just [1,2,3]
+sequence [Just 1, Nothing,  Just 3]  -- Nothing
+```
+
+The implementation is identical: walk the list, combine the results with the `Applicative` instance, short-circuit when the context says to. The signature is identical too, once you squint past the syntax. The only reason either language has this primitive is that both have the feature `F[_]` / `f` represents.
+
+If you've ever wondered why Scala uses `F[_]` with the underscore in the type-parameter position, this is why. The underscore is the visible artifact of a feature Haskell never needed to invent bespoke syntax for. In Haskell, `sequence :: Applicative f => [f a] -> f [a]` is normal-shaped, and the compiler infers the _kind_ `* -> *` from the way `f` is used (`f a`, `f [a]`). If you want to see the inferred kind in GHCi, `:k Maybe` prints `Maybe :: * -> *`. That's the entire ceremony.
+
+Variance — Scala's `+A` and `-A`, plus the question of when a `Functor` instance is even expected to exist for a given `F[_]` — is its own subject and lives in Part 6. So does `Contravariant` and the type-system roles machinery that Haskell uses to police what you can derive on a parameterized type.
 
 ## Functor, Applicative, Monad — on a custom type
 
