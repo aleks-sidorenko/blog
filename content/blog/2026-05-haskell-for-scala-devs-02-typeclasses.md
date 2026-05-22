@@ -268,7 +268,136 @@ Variance — Scala's `+A` and `-A`, plus the question of when a `Functor` instan
 
 ## Functor, Applicative, Monad — on a custom type
 
-<!-- TODO: Use Outcome (the anchor from §1). Walk Functor → Applicative → Monad in three subsections, defining the Cats instance and the Haskell instance side by side. Show the consequence: do-notation, <-, >>=, the fact that this all just works for any Monad. One paragraph at the end on laws (mentioned, not relitigated). One-sentence forward link: "IO is a Monad too — Part 3." -->
+This is the part the walkthrough was building toward. Three type classes, in order of strength: `Functor` is "I can map a function over the wrapped value." `Applicative` is "I can apply a wrapped function to a wrapped value, and I can lift a plain value into the wrapper." `Monad` is "I can chain computations where each step's input depends on the previous step's output, and I get a context-respecting result back."
+
+In both languages, these classes are layered — `Monad` requires `Applicative` requires `Functor` — and in both, the standard library / Cats supplies instances for the obvious stdlib types and lets you declare your own. The interesting thing is what happens on `Outcome` from earlier in this post, because `Outcome`'s natural `Applicative` and `Monad` fight.
+
+### Functor
+
+In Haskell, deriving `Functor` is one word in the data declaration:
+
+```haskell
+data Outcome a
+  = Invalid [String]
+  | Valid a
+  deriving (Show, Eq, Functor)
+```
+
+`{-# LANGUAGE DeriveFunctor #-}` makes the compiler write the obvious `fmap`: leave `Invalid` alone, apply the function to the contents of `Valid`. There are types where you'd want non-default behavior, but for `Outcome` the obvious thing is right.
+
+Scala can't derive `Functor`. You write it:
+
+```scala
+given Functor[Outcome] with
+  def map[A, B](fa: Outcome[A])(f: A => B): Outcome[B] = fa match
+    case Outcome.Invalid(rs) => Outcome.Invalid(rs)
+    case Outcome.Valid(a)    => Outcome.Valid(f(a))
+```
+
+This block, on every parameterized data type you ever ship, is the price of doing business in Cats. Scala 3's `derives` keyword can shorten it with the right derivation library (`kittens`), but Cats's vocabulary doesn't ship the `derived` method out of the box. So you write the `Functor` by hand — the way Haskell developers stopped writing them by hand in 2012, when `DeriveFunctor` shipped in GHC 7.4.
+
+### Applicative
+
+`Applicative` is where `Outcome` gets interesting. The natural instance accumulates errors — combine two `Invalid`s and you get the concatenation of their reasons:
+
+```scala
+given Applicative[Outcome] with
+  def pure[A](a: A): Outcome[A] = Outcome.Valid(a)
+  def ap[A, B](ff: Outcome[A => B])(fa: Outcome[A]): Outcome[B] =
+    (ff, fa) match
+      case (Outcome.Invalid(r1), Outcome.Invalid(r2)) => Outcome.Invalid(r1 ++ r2)
+      case (Outcome.Invalid(rs), _)                   => Outcome.Invalid(rs)
+      case (_, Outcome.Invalid(rs))                   => Outcome.Invalid(rs)
+      case (Outcome.Valid(f),    Outcome.Valid(a))    => Outcome.Valid(f(a))
+```
+
+```haskell
+instance Applicative Outcome where
+  pure = Valid
+  (Invalid r1) <*> (Invalid r2) = Invalid (r1 ++ r2)
+  (Invalid rs) <*> _            = Invalid rs
+  _            <*> (Invalid rs) = Invalid rs
+  (Valid f)    <*> (Valid x)    = Valid (f x)
+```
+
+This is the satisfying instance — validate name, validate email, validate password, and if all three fail you get all three error messages back instead of just the first one. Cats's `Validated`, Haskell's `Validation`, the validation pattern in every effect library — same shape, same `Applicative`.
+
+It has one problem.
+
+### Monad — and the disagreement
+
+You can't write a lawful `Monad` instance for `Outcome` that keeps the accumulating behavior. The Monad laws require `ap` (the `Applicative` operation) to agree with `liftA2 id` implemented via `>>=`. With `Invalid r1 >>= \f -> Invalid r2 >>= \x -> pure (f x)`, the right-hand bind never runs — `r2` is invisible, you get `Invalid r1`. The Monad-implied `<*>` short-circuits. The standalone accumulating `<*>` does not. The two are different functions, and a lawful `Monad` requires them to be the same.
+
+So you pick. The Haskell ecosystem picks for you: there's `Either e` (lawful Monad, short-circuit on failure) and `Validation e` (Applicative-only, accumulating). Cats does the same: `Either[E, A]` (Monad, short-circuit) and `Validated[E, A]` (Applicative-only, accumulating). `Outcome` as written above with _both_ instances is doing the thing the ecosystem warns against — useful as a teaching toy, not what you'd ship.
+
+For the rest of this section, pretend `Outcome` is the short-circuiting variant — `Applicative` derived from `Monad`, errors stop at the first failure. That's what the `do`-block and the `for`-comprehension below assume.
+
+```scala
+given Monad[Outcome] with
+  def pure[A](a: A): Outcome[A] = Outcome.Valid(a)
+  def flatMap[A, B](fa: Outcome[A])(f: A => Outcome[B]): Outcome[B] = fa match
+    case Outcome.Invalid(rs) => Outcome.Invalid(rs)
+    case Outcome.Valid(a)    => f(a)
+  def tailRecM[A, B](a: A)(f: A => Outcome[Either[A, B]]): Outcome[B] = ???
+  // tailRecM is a Cats requirement for stack-safe recursion; elided.
+```
+
+```haskell
+instance Monad Outcome where
+  return = pure
+  (Invalid rs) >>= _ = Invalid rs
+  (Valid a)    >>= f = f a
+```
+
+With those in scope, the parsing pipeline that says "parse two integers, sum them, error out on the first failure" is exactly the plumbing both languages built sugar for:
+
+```scala
+def parseInt(s: String): Outcome[Int] =
+  s.toIntOption match
+    case Some(i) => Outcome.Valid(i)
+    case None    => Outcome.Invalid(List(s"not an int: $s"))
+
+val ok = for
+  a <- parseInt("10")
+  b <- parseInt("20")
+yield a + b
+// Valid(30)
+
+val ko = for
+  a <- parseInt("oops")
+  b <- parseInt("20")
+yield a + b
+// Invalid(List(not an int: oops))
+```
+
+```haskell
+parseInt :: String -> Outcome Int
+parseInt s = case readMaybe s of
+  Just i  -> Valid i
+  Nothing -> Invalid ["not an int: " ++ s]
+
+ok = do
+  a <- parseInt "10"
+  b <- parseInt "20"
+  pure (a + b)
+-- Valid 30
+
+ko = do
+  a <- parseInt "oops"
+  b <- parseInt "20"
+  pure (a + b)
+-- Invalid ["not an int: oops"]
+```
+
+Scala's `for { x <- ... }` desugars to `flatMap` / `map` / `withFilter`. Haskell's `do { x <- ... }` desugars to `(>>=)` / `return`. The translations are mechanical. The same `for`-block runs over `Option`, `Either`, `List`, `IO`, `Outcome`, any type whose `Monad` instance is in scope; the same `do`-block runs over any Haskell `Monad`. The notation is the same shape because the abstraction underneath is the same shape.
+
+### A word on laws
+
+Both languages document the laws — `Functor` identity and composition, `Applicative` identity / homomorphism / interchange / composition, `Monad` left-identity / right-identity / associativity. Both rely on the implementer to honor them. Both let you write instances that don't.
+
+The difference, when it shows up, is that Haskell's coherence guarantee makes a broken instance more dangerous (it's broken _everywhere_ in your program) and also more findable (`quickcheck-classes` is a one-line test you can drop into any package). Cats ships `cats-laws` for the same job, but you wire it up explicitly. Different mechanics, same discipline.
+
+And `IO` is a `Monad` in both languages — `do { x <- readLine; putStrLn x }` is the same shape as `for { x <- IO.readLine; _ <- IO.println(x) } yield ()`. That's where Part 3 starts.
 
 ## Deriving: from `derives` to `deriving via`
 
