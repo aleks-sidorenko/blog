@@ -4,3 +4,12 @@
 /.direnv
 .mcp.server
 /docs/*
+
+# CV build artifacts
+cv/cv.pdf
+cv/*.aux
+cv/*.log
+cv/*.out
+cv/*.fls
+cv/*.fdb_latexmk
+cv/*.synctex.gz
