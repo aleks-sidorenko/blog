@@ -42,14 +42,14 @@
             fontspec
             fontawesome
             xcolor
-            preprint        # provides fullpage.sty
-            amsfonts        # provides amssymb
+            preprint # provides fullpage.sty
+            amsfonts # provides amssymb
             fancyhdr
             lastpage
-            pgf             # provides tikz
+            pgf # provides tikz
             hyperref
             titlesec
-            tools           # longtable, multicol, etc.
+            tools # longtable, multicol, etc.
             ;
         };
     in
@@ -58,7 +58,12 @@
         { pkgs }:
         let
           evenTheme = pkgs.fetchFromGitHub {
-            inherit (theme) owner repo rev hash;
+            inherit (theme)
+              owner
+              repo
+              rev
+              hash
+              ;
           };
           tex = texFor pkgs;
         in
@@ -86,7 +91,7 @@
               export TEXMFCACHE="$texcache"
               # Run twice so \pageref{LastPage} resolves on the second pass.
               for i in 1 2; do
-                lualatex --interaction=nonstopmode --halt-on-error \
+                ${tex}/bin/lualatex --interaction=nonstopmode --halt-on-error \
                   --output-directory=cv cv/cv.tex
               done
               cp cv/cv.pdf static/cv.pdf
@@ -110,6 +115,9 @@
             cp -r ${evenTheme}/* "$TMPDIR/themes/even/"
             chmod -R u+w "$TMPDIR"
             cd "$TMPDIR"
+            # Drop any stale CV artifacts copied from the working tree so the
+            # rebuild below is deterministic.
+            rm -f "$TMPDIR/cv/cv.pdf" "$TMPDIR/cv/"*.aux "$TMPDIR/static/cv.pdf"
             texcache=$(mktemp -d)
             export HOME="$texcache"
             export TEXMFHOME="$texcache"
