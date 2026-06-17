@@ -14,7 +14,7 @@ Here's the thesis, stated plainly: **Cats Effect's `IO` is Haskell's `IO`, porte
 
 ZIO is the one place that story gets more interesting, and it's why I asked to cover both. ZIO's `ZIO[R, E, A]` is a genuinely different bet — it folds the environment and the error type into the effect type itself. Haskell makes that same bet too, but it spreads the pieces across different tools: `ReaderT` for the `R`, `ExceptT` or plain exceptions for the `E`, and increasingly an effect-handler library (`effectful`, `polysemy`, `fused-effects`) when you want the whole thing in one place. Same problem, different decomposition, real trade-offs on both sides.
 
-The map: why `Future` is the thing to delete, what `IO`-as-a-value buys you, the error-handling story I promised back in Part 1, resource safety, shared state, structured concurrency with a worked example, and then ZIO versus Haskell's MTL. Out of scope, and deferred elsewhere: streaming (fs2 / ZIO Streams versus `conduit` / `streamly` is its own post), the OOP-flavored "mutation as an effect" framing (Part 4), and the deeper type-level machinery behind tagless final and effect systems (Part 6).
+The map: why `Future` is the thing to delete, what `IO`-as-a-value buys you, how errors become just another effect, resource safety, shared state, structured concurrency with a worked example, and finally ZIO against Haskell's MTL. The one neighbor I'm leaving for its own post is streaming — fs2 and ZIO Streams against `conduit` and `streamly` is a comparison that deserves the room.
 
 _Previous in series: [Part 2 — Type Classes and Implicits](@/blog/2026-05-haskell-for-scala-devs-02-typeclasses.md)._
 
