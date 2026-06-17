@@ -84,8 +84,11 @@
               export TEXMFHOME="$texcache"
               export TEXMFVAR="$texcache"
               export TEXMFCACHE="$texcache"
-              lualatex --interaction=nonstopmode --halt-on-error \
-                --output-directory=cv cv/cv.tex
+              # Run twice so \pageref{LastPage} resolves on the second pass.
+              for i in 1 2; do
+                lualatex --interaction=nonstopmode --halt-on-error \
+                  --output-directory=cv cv/cv.tex
+              done
               cp cv/cv.pdf static/cv.pdf
 
               zola build -o $out
@@ -112,8 +115,11 @@
             export TEXMFHOME="$texcache"
             export TEXMFVAR="$texcache"
             export TEXMFCACHE="$texcache"
-            ${tex}/bin/lualatex --interaction=nonstopmode --halt-on-error \
-              --output-directory="$TMPDIR/cv" "$TMPDIR/cv/cv.tex"
+            # Run twice so \pageref{LastPage} resolves on the second pass.
+            for i in 1 2; do
+              ${tex}/bin/lualatex --interaction=nonstopmode --halt-on-error \
+                --output-directory="$TMPDIR/cv" "$TMPDIR/cv/cv.tex"
+            done
             cp "$TMPDIR/cv/cv.pdf" "$TMPDIR/static/cv.pdf"
             ${pkgs.zola}/bin/zola serve
           '';
