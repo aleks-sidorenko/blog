@@ -6,7 +6,7 @@ template = "about.html"
 
 ## Hi, I'm Alexander
 
-Software engineer with 21 years of experience, primarily in Scala, Haskell, and Nix. I focus on functional programming, the architecture of high-load distributed systems, reproducible builds, and AI-compatible development workflows.
+Software engineer with 21 years of experience, primarily in Scala, Haskell, and Nix. I focus on functional programming, the architecture of high-load distributed systems, reproducible builds, and AI-first development with cutting-edge agentic and LLM tooling.
 
 This blog is where I write about things I find interesting in programming and technology. For the full picture — experience, projects, and skills — see my [CV](/cv.pdf).
 
