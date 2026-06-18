@@ -1,0 +1,121 @@
+% !TEX TS-program = lualatex
+%
+% CV for Alexander Sidorenko.
+% Style adapted from https://github.com/hmemcpy/cv (template.tex),
+% itself based on Professional CV by Alessandro Plasmati.
+
+\documentclass[a4paper,11pt]{article}
+
+\usepackage[usenames,dvipsnames]{xcolor}
+\usepackage{libertine}
+\usepackage{fontawesome}
+\usepackage{longtable}
+\usepackage[cm]{fullpage}
+\usepackage{amssymb}
+
+% headers and footers
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\pagestyle{fancy}
+\fancyfoot[L]{Alexander Sidorenko}
+\fancyfoot[C]{Page \thepage\ of \pageref*{LastPage}}
+\fancyfoot[R]{}
+\renewcommand{\footrulewidth}{0.4pt}
+\fancyhead{}
+\renewcommand{\headrulewidth}{0pt}
+
+% StackOverflow-like tags
+\usepackage{tikz}
+\definecolor{tagbg}{RGB}{225,236,244}
+\definecolor{tagtxt}{RGB}{88,115,159}
+\newcommand{\sotag}[1]{\tikz[baseline]{\node[anchor=base, rounded corners=0.5ex, text height=1.5ex, text depth=.25ex, fill=tagbg, draw=tagbg, text=tagtxt] {#1};}}
+\makeatletter
+\newcommand{\sotagrow}[1]{\\[0.35em]& \@for\sotagitem:=#1\do{\sotag{\sotagitem} }\\}
+\makeatother
+
+% Helpers for adding job entries
+\newcommand{\job}[2]{\large\sffamily \textbf{#1} at \textbf{#2}\rule[-0.45em]{0pt}{1.45em}}
+\newcommand{\sep}{\multicolumn{2}{c}{}\\}
+
+% tweak the url colors
+\usepackage{hyperref}
+\definecolor{linkcolor}{rgb}{0,0.2,0.6}
+\hypersetup{colorlinks,breaklinks,urlcolor=linkcolor, linkcolor=linkcolor}
+
+% nicer-looking section titles
+\usepackage{titlesec}
+\titleformat{\section}{\Large\scshape\raggedright}{}{0em}{}[\titlerule]
+\titlespacing{\section}{0pt}{1em}{3pt}
+
+\begin{document}
+
+% --------------------TITLE-------------
+\par{\centering
+    {\Huge \textsc{Alexander Sidorenko}}\\[0.45em]
+    {\normalsize Software Engineering Team Leader \textbullet{} Tech Leader \textbullet{} System Architect \textbullet{} Senior Software Engineer \textbullet{} DevOps}
+  \bigskip\par}
+
+\hrule
+\vspace{0.5em}
+\begin{tabular}{rl}
+  \textsc{Email:} & \faEnvelope{} \href{mailto:aleks.sidorenko@gmail.com}{aleks.sidorenko@gmail.com}\\
+  \textsc{Links:} & \faHome{} \href{https://www.sidorenko.me/}{sidorenko.me}
+                  | $\mathbb{X}$ \href{https://x.com/aleks_sidorenko}{@aleks\_sidorenko}
+                  | \faGithub{} \href{https://github.com/aleks-sidorenko}{github}
+                  | \faLinkedin{} \href{https://www.linkedin.com/in/alekssidorenko/}{linkedin}\\
+                  & \faPaperPlane{} \href{https://t.me/aleks_sidorenko}{telegram}
+                  | \faReddit{} \href{https://www.reddit.com/user/aleks_sidorenko/}{reddit}
+                  | \faCode{} \href{https://www.hackerrank.com/aleks_sidorenko}{hackerrank}
+                  | \faBook{} \href{https://www.goodreads.com/review/list/41325555-alexander-sidorenko?shelf=read}{books read}\\
+\end{tabular}
+
+\section{Summary}
+\begin{tabular}{p{0.95\textwidth}}
+21 years in IT, primarily Scala (9y), C\# (8y), and Java (7y), with hands-on Haskell, Rust, and Nix. Strong in Functional Programming and the architecture of high-load, distributed, event-driven systems (CQRS/DDD, microservices, reactive). Working fully AI-first --- a development workflow driven by cutting-edge agentic and LLM technologies (agentic coding, LLM APIs, MCP, RAG, prompt engineering).\\[0.6em]
+Hands-on DevOps and Infrastructure-as-Code (Docker, Kubernetes, Terraform, CI/CD on AWS). TDD/XP advocate and team lead --- establishing engineering culture, interviewing, and growing development teams. MSc in Computer Science.
+\end{tabular}
+
+\section{Goal}
+\begin{tabular}{p{0.95\textwidth}}
+My perfect project: a strong, skilled team that embraces good engineering practices (TDD, CI/CD, pair programming), open source, and functional programming; cutting-edge technologies (Haskell / Scala / Rust), cloud-hosted, big-data, high-load; agile development with a product/startup culture and no bureaucracy --- less meetings, more engineering.
+\end{tabular}
+
+\section{Open Source \& Pet-projects}
+\begin{tabular}{rp{0.78\textwidth}}
+  \href{https://github.com/aleks-sidorenko/nix-config}{\textsc{Nix Config}:}  & Personal NixOS, nix-darwin, and home-manager configuration built on snowfall-lib --- declarative, role-based configuration across multiple systems and architectures, with encrypted secrets and opt-in persistence.\\[0.4em]
+  \href{https://github.com/aleks-sidorenko/eventium}{\textsc{eventium}:}    & A Haskell library for building event-sourced applications with CQRS.\\[0.4em]
+  \href{https://github.com/aleks-sidorenko/nix-routeros}{\textsc{nix-routeros}:}& Declarative MikroTik RouterOS configuration using Nix.\\
+\end{tabular}
+
+\section{Work Experience \hfill{\normalfont\footnotesize\itshape (last 5 projects)}}
+\begin{longtable}{r|p{0.72\textwidth}}
+
+  \textsc{Dec 2021--Present} & \job{Software Engineer / Product}{Wix} \\(Infrastructure)
+    &Infrastructure team owning async job execution, scheduling, idempotency, rate-limiting/quotas, and durable infra domains.\\&\\
+    &Implemented the async job execution framework, an idempotency infra library, and a quota-limiting service; redesigned the scheduler to a decentralized approach; supported and improved the effects library; wrote ADRs and drove development-process improvements.\sotagrow{scala,java,bazel,grpc,kafka,mysql,protobuf,aws,zio}\sep
+
+  \textsc{Sep 2019--Dec 2021} & \job{Software Engineer}{Wix} \\(Payments)
+    &Team responsible for user payouts and balances in the Wix Payments system.\\&\\
+    &Implemented a reporting service for monthly-fee invoices; implemented and refactored payouts with a configurable payout schedule; improved durability and resiliency of payouts; introduced XP practices and engineering principles.\sotagrow{scala,grpc,kafka,mysql,protobuf,aws,zio}\sep
+
+  \textsc{Sep 2018--Sep 2019} & \job{Lead Software Engineer / Architect / DevOps}{Findify} \\
+    &Search-as-a-service for ecommerce platforms (Shopify, Magento): search, suggestions, recommendations.\\&\\
+    &Reviewed and redesigned the architecture; implemented a Lisp-based DSL; built CI/CD pipelines with Jenkins shared libraries; introduced XP practices and engineering principles.\sotagrow{scala,akka-streams,akka-http,cats,shapeless,cassandra,kubernetes,terraform,lucene,aws,lambda,kinesis}\sep
+
+  \textsc{Sep 2017--Sep 2018} & \job{Tech Lead / Lead Software Engineer / DevOps}{N-iX (IOV42)} \\
+    &Blockchain-based distributed high-load low-latency payment system built with Scala + Akka using CQRS/ES and a custom distributed consensus algorithm.\\&\\
+    &Built a transport library on top of Aeron; implemented a custom protocol for master selection used in consensus; improved system resilience and availability; dockerized and moved the system to Kubernetes; introduced XP practices.\sotagrow{scala,akka,akka-persistence,akka-cluster,cats,shapeless,cassandra,docker,kubernetes,terraform}\sep
+
+  \textsc{Jan 2016--Sep 2017} & \job{Team Leader / Senior Full-Stack Engineer / DevOps}{Video Intelligency} \\(RTB System)
+    &High-load real-time bidding distributed low-latency system (Java/Scala microservices); ETL pipeline in Kafka/Flink; management console in ES6 + NodeJS/ReactJS+Redux; hosted on AWS + Kubernetes.\\&\\
+    &Built the team; refactored the home-made ETL pipeline to Kafka/Flink; improved overall performance and scalability (up to 50k+ RPS); built CI/CD pipelines; containerized the system and moved it to Kubernetes.\sotagrow{java,scala,kafka,flink,nodejs,reactjs,aws,kubernetes,terraform,ansible}\sep
+
+\end{longtable}
+
+\section{Education}
+\begin{tabular}{rp{0.72\textwidth}}
+  \textsc{2000--2006} & \textbf{Master}, National Technical University of Ukraine "Kyiv Polytechnic Institute" --- Faculty of Information Security (Physics and Technology), Computer Systems Analyst.\\[0.4em]
+  \textsc{2008--2010} & \textbf{Bachelor}, National Taras Shevchenko University of Kyiv --- Faculty of International Economic Relations, International Business.\\
+\end{tabular}
+
+\end{document}

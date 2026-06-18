@@ -6,10 +6,9 @@ template = "about.html"
 
 ## Hi, I'm Alexander
 
-Software engineer with a passion for functional programming, type systems, purity, referential transparency, reproducible builds and infrustructure-as-code.
+Software engineer with 21 years of experience, primarily in Scala, Haskell, and Nix. I focus on functional programming, the architecture of high-load distributed systems, reproducible builds, and AI-first development with cutting-edge agentic and LLM tooling.
 
-I am professional software engineer for more than 20 years.
-I work primarily with Scala, Haskell, Nix, and various functional programming tools. This blog is where I write about things I find interesting in the world of programming and technology.
+This blog is where I write about things I find interesting in programming and technology. For the full picture — experience, projects, and skills — see my [CV](/cv.pdf).
 
 ### Interests
 
@@ -20,6 +19,7 @@ I work primarily with Scala, Haskell, Nix, and various functional programming to
 
 ### Links
 
+- [CV](/cv.pdf)
 - [GitHub](https://github.com/aleks-sidorenko)
 - [X (Twitter)](https://x.com/aleks_sidorenko)
 - [LinkedIn](https://linkedin.com/in/alekssidorenko)
