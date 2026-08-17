@@ -1,7 +1,7 @@
 +++
 title = "Haskell for Scala Developers: Part 1 — Functions and Data"
 date = 2026-05-05
-description = "First in a series for working Scala developers picking up Haskell. Functions, data, pattern matching, options, and newtypes — the parts you already write, and what falls away when you don't have to share a language with the JVM."
+description = "For working Scala developers picking up Haskell: functions, data, pattern matching, options, and newtypes — the parts you already write, and what falls away when you don't have to share a language with the JVM."
 path = "blog/2026/05/haskell-for-scala-devs-01-basics"
 [taxonomies]
 tags = ["haskell", "scala", "functional-programming", "haskell-for-scala-devs"]
@@ -10,9 +10,9 @@ categories = ["programming"]
 
 There's a popular way to write this kind of post — a feature-by-feature comparison table, with checkmarks and a sentence per row. I'm not going to do that. What I want to do instead is take the parts of Scala that you already write idiomatically — case classes, sealed traits, `Option`, `Either`, the occasional `extends AnyVal` for a typed id — and show you what happens when the language stops apologizing for them.
 
-That's the main thread of the series. Most of what made me love Scala is _exactly_ what Haskell gives you, minus the JVM cost, minus the OOP escape hatches, and minus the long-running argument inside the Scala community about what good Scala even looks like. If you want the longer version of why I'm writing this at all, it's in [The Rise and Fall of Scala](@/blog/2026-01-the-rise-and-fall-of-scala.md).
+That's the main thread here. Most of what made me love Scala is _exactly_ what Haskell gives you, minus the JVM cost, minus the OOP escape hatches, and minus the long-running argument inside the Scala community about what good Scala even looks like. If you want the longer version of why I'm writing this at all, it's in [The Rise and Fall of Scala](@/blog/2026-01-the-rise-and-fall-of-scala.md).
 
-This first post is the easy one. Functions, data, pattern matching, options, newtypes — all the things you already type twenty times a week. The translation is mostly mechanical. The interesting part is the small set of frictions that disappear when the language stops compromising on them.
+This one is the easy one. Functions, data, pattern matching, options, newtypes — all the things you already type twenty times a week. The translation is mostly mechanical. The interesting part is the small set of frictions that disappear when the language stops compromising on them.
 
 <!-- more -->
 
@@ -237,7 +237,7 @@ data User = User
 
 A few small differences worth understanding before we go further.
 
-**Field accessors are top-level functions.** When you declare `User { userId :: String, name :: String, age :: Int }`, Haskell creates three top-level functions: `userId :: User -> String`, `name :: User -> String`, `age :: User -> Int`. They live in the module's namespace. Try to declare another type with a `name` field in the same module and you'll get a duplicate-binding error. Scala developers find this jarring at first — your case class fields are _not_ methods you call dot-style; they're plain functions you apply to a value. The community has built three responses: prefix conventions (`userId`, `userName`, `userAge` — very common in real codebases), the `DuplicateRecordFields` extension (allows the conflict but requires disambiguation at use sites), and the more recent `OverloadedRecordDot` extension (lets you write `user.name` after all). We'll come back to this in Part 5 when we get to optics, where the pain has produced one of the more interesting libraries in the language.
+**Field accessors are top-level functions.** When you declare `User { userId :: String, name :: String, age :: Int }`, Haskell creates three top-level functions: `userId :: User -> String`, `name :: User -> String`, `age :: User -> Int`. They live in the module's namespace. Try to declare another type with a `name` field in the same module and you'll get a duplicate-binding error. Scala developers find this jarring at first — your case class fields are _not_ methods you call dot-style; they're plain functions you apply to a value. The community has built three responses: prefix conventions (`userId`, `userName`, `userAge` — very common in real codebases), the `DuplicateRecordFields` extension (allows the conflict but requires disambiguation at use sites), and the more recent `OverloadedRecordDot` extension (lets you write `user.name` after all). The pain here has produced one of the more interesting libraries in the language — the optics story is one of its own.
 
 **`deriving` is opt-in.** The `deriving (Show, Eq)` line gives you free instances for printing and equality, the same way `case class` gives them by default in Scala. The difference is that Haskell asks you to ask. I prefer that. It makes the cost of "what am I getting?" visible — you don't have to remember whether `Show` is "a printable form" or "a JSON encoding"; you just look at the line.
 
@@ -406,7 +406,7 @@ Same expression, more readable. The `do` block desugars to the same `>>=` chain 
 
 A few real differences worth flagging.
 
-There's no direct `Try[A]` in Haskell. The Scala instinct of "wrap a thing that might throw" doesn't translate one-to-one because exceptions are an effect, and Haskell tracks effects in the type. The honest equivalent is `IO (Either SomeException a)` plus the `MonadThrow`/`MonadCatch` machinery, and that's a Part 3 conversation.
+There's no direct `Try[A]` in Haskell. The Scala instinct of "wrap a thing that might throw" doesn't translate one-to-one because exceptions are an effect, and Haskell tracks effects in the type. The honest equivalent is `IO (Either SomeException a)` plus the `MonadThrow`/`MonadCatch` machinery — a concern for effectful code, not for plain data modeling.
 
 A pattern you'll see immediately, though, is using `Either` with a domain-specific error type. Where Scala devs reach for `Either[Throwable, A]` (or stack errors onto a sealed trait), Haskell makes the data type cheap enough that you just do that everywhere:
 
@@ -524,16 +524,24 @@ Now a function with the wrong-order arguments:
 
 Same guarantee Scala 3's opaque types give you, with no module tricks, with full derivation, and with the rest of the ecosystem already designed around it. You'll see `newtype` everywhere in Haskell. Not just for ids — for every place where two values that share a runtime representation should be kept apart by the type system. `newtype Sum a = Sum a` for monoidal addition. `newtype Product a = Product a` for the multiplicative version. `newtype Compose f g a = Compose (f (g a))`. The cost of introducing a new type is so low that the language has settled into using it as a _modelling_ tool, not a workaround.
 
-This is the main thread of the whole post in miniature. Scala has the right idea — opaque types are the right idea. The language just hasn't been built around them long enough for the rest of the toolkit to assume they exist. In Haskell, every library, every class instance, every piece of generic code already assumes that you'll wrap your `String`s when you need to. The cost of doing the right thing has been driven to zero. We'll come back to this in Part 5, when we get to deriving and `DerivingVia`, which is where the comparison gets even more one-sided.
+This is the main thread of the whole post in miniature. Scala has the right idea — opaque types are the right idea. The language just hasn't been built around them long enough for the rest of the toolkit to assume they exist. In Haskell, every library, every class instance, every piece of generic code already assumes that you'll wrap your `String`s when you need to. The cost of doing the right thing has been driven to zero. That comparison gets even more one-sided once you reach deriving and `DerivingVia`.
 
 ## Where this is going
 
 The thesis at the top was that Scala's case classes and sealed traits are already Haskell's ADTs in disguise — and that what changes is what drops away when the language commits. We've now seen this in five small places. Functions are curried by default; partial application is just syntax. Records and sums are the same shapes you write in Scala, minus the OOP attachments. `Option` and `Either` carry over almost verbatim, minus `null`. `newtype` is what `opaque type` will be in another decade of ecosystem work.
 
-None of this is the main point of the series. It's the place where the comparison is most flattering to Scala — because Scala has been getting these things right for a long time, and Haskell's lead here is honestly small. If you've already trained your hands on case classes and sealed traits, picking up the equivalent Haskell forms is more like noticing where the friction was than learning a new toolkit. The interesting parts of the series come next.
+None of this is the headline. It's the place where the comparison is most flattering to Scala — because Scala has been getting these things right for a long time, and Haskell's lead here is honestly small. If you've already trained your hands on case classes and sealed traits, picking up the equivalent Haskell forms is more like noticing where the friction was than learning a new toolkit.
 
-[Part 2](@/blog/2026-05-haskell-for-scala-devs-02-typeclasses.md) is about type classes and implicits — the place Scala has always been trying to do a thing Haskell does natively, and where Scala 3's `given`/`using` is finally close enough to compare cleanly. After that: effects and concurrency, OOP-as-encoded-elsewhere (or not encoded at all), optics and metaprogramming, and the type-system deep end. The further we go, the more the gap shows. The format is the same as this post — anchor example, side-by-side code, every snippet checked against a compiler before it appears here.
+Every snippet above was checked against a compiler before it appeared here.
 
 If you read this far and the only thought is _"yeah, none of that is news,"_ — good. That's the whole point of starting here.
 
-_Next in series: [Part 2 — Type Classes and Implicits](@/blog/2026-05-haskell-for-scala-devs-02-typeclasses.md)._
+---
+
+*Part of the **Haskell for Scala Developers** series:*
+
+1. **Functions and Data**
+2. [Type Classes and Implicits](@/blog/2026-05-haskell-for-scala-devs-02-typeclasses.md)
+3. [Effects and Concurrency](@/blog/2026-06-haskell-for-scala-devs-03-effects.md)
+4. [Objects and Modules](@/blog/2026-07-haskell-for-scala-devs-04-oop.md)
+5. [Optics and Deriving](@/blog/2026-08-haskell-for-scala-devs-05-optics.md)
