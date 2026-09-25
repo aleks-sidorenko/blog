@@ -76,7 +76,7 @@ And one more, from the way the 1C decade ended: you should be able to *keep* the
 
 **Tracking should cost no time.** This is the requirement everything else was built around, and the one I'd hold the project to. A connected bank imports transactions on its own — so for card spending, which is most of what a household does, the minutes-per-month figure is genuinely zero. Nobody types, nobody uploads anything, nobody sits down on Sunday. The ledger fills itself while you're not looking.
 
-**Banks are plugged in, not baked in.** monobank and PrivatBank came first for an entirely unglamorous reason: I live in Ukraine and they're my banks. That's the only reason. Nothing in the core of the system knows the name of a single bank — a provider is a self-contained module that declares what it can do, and adding one is that module plus a line in a registry.
+**Banks are plugged in, not baked in.** Monobank and PrivatBank came first for an entirely unglamorous reason: I live in Ukraine and they're my banks. That's the only reason. Nothing in the core of the system knows the name of a single bank — a provider is a self-contained module that declares what it can do, and adding one is that module plus a line in a registry.
 
 Providers come in two shapes, because banks differ in how much they're willing to give you. One is a live connection: fetch the accounts, fetch transactions for a date range, register a webhook so new ones arrive as they happen. That's the zero-time path. The other is a statement parser — CSV or XLSX, the file you can download from any bank's web interface — for the many banks that offer no API to anyone. It's the worse path, because downloading a file is a chore, and it is still the difference between a bank being supported and not.
 
@@ -122,7 +122,7 @@ So: I picked the language I'd still want to open in year ten, on a project nobod
 
 ## Where it actually is
 
-Early. Honestly early. The bank integrations cover monobank and PrivatBank because that's where my money lives and that's the audience I can serve properly first. There's one maintainer. Plenty of the app is still a rough first pass.
+Early. Honestly early. The bank integrations cover Monobank and PrivatBank because that's where my money lives and that's the audience I can serve properly first. There's one maintainer. Plenty of the app is still a rough first pass.
 
 There is also nothing to buy. This isn't a startup with an open-source phase, and I'm not building an audience to charge it later — it's a tool I needed for my own household, released under a licence that guarantees it stays that way for yours.
 
