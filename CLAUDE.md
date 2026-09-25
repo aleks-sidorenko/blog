@@ -8,7 +8,7 @@ Personal blog for Oleksandr Sidorenko (www.sidorenko.me) built with Zola static 
 
 ## Build & Development Commands
 
-Enter the dev shell first (`nix develop`), then use `just`:
+The dev shell loads automatically via direnv (`.envrc` runs `use flake`; `direnv allow` once after cloning). Without direnv, enter it manually with `nix develop` first. Then use `just`:
 
 ```bash
 just help            # List available commands
