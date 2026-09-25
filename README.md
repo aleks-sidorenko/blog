@@ -15,8 +15,10 @@ Personal blog at [www.sidorenko.me](https://www.sidorenko.me), built with [Zola]
 
 ## Development
 
+With [direnv](https://direnv.net/) installed, the dev shell loads automatically on `cd` (run `direnv allow` once after cloning).
+
 ```bash
-# Enter dev shell with zola available
+# Enter dev shell with zola available — not needed under direnv
 nix develop
 
 # Build the site
