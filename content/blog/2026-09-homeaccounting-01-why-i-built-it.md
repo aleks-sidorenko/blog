@@ -12,6 +12,8 @@ For eleven years I've been writing down what my household spends. One of those y
 
 Neither tool survived. Both of them were right about something, and I didn't understand what until I'd lost them.
 
+They also failed the same way, which took me most of those eleven years to see. Every tool I tried was fundamentally a form to fill in. They competed on what happened *after* the data was in — the reports, the charts, the budgets — and they all quietly agreed that getting it in was my job, in my evenings, forever. That's the bill that eventually goes unpaid. So the thing I actually set out to build wasn't a better ledger. It was one that costs no time at all.
+
 <!-- more -->
 
 ## Why track anything at all
@@ -24,7 +26,9 @@ The reason to keep a record isn't to obey a budget. It's to be able to answer a 
 
 And those answers only exist if you were already keeping the record *before* you needed it. Nobody starts tracking the month they decide to buy an apartment and gets a useful answer. The baseline has to be there already — which means the whole thing lives or dies on one property: whether recording is cheap enough that you keep doing it when nothing is at stake.
 
-That's what I wanted. Getting it took eleven years.
+Cheap in one currency specifically. Not money — time. A tool that asks for fifteen minutes a week is asking for thirteen hours a year, indefinitely, in exchange for answers you mostly won't need until you suddenly do. Nobody sustains that, and the people who do are not being virtuous, they're being unusual. Every abandoned tracking system I've ever heard about was abandoned for this reason, and never for a missing feature.
+
+So the target isn't *less* time. It's zero, or as close to zero as the problem allows. Getting there took eleven years.
 
 ## The Excel year
 
@@ -58,7 +62,7 @@ Then February 2022. Keeping Russian software at the center of my household's rec
 
 Three conclusions I'd now defend.
 
-**Capture is the whole problem.** Every tool I used was good at reporting and bad at getting data in — and reporting is the easy half. If recording a purchase costs more than a few seconds of attention, you will eventually stop, and a tool you've stopped using has no reports worth reading.
+**Capture is the whole problem, and its unit is time.** Every tool I used was good at reporting and bad at getting data in — and reporting is the easy half, the half a computer should have been doing unsupervised all along. Judge a personal finance tool by exactly one number: the minutes per month it takes from you. Everything else is a feature list. If that number isn't near zero, you will stop, and a tool you've stopped using has no reports worth reading.
 
 **A household needs history, not a balance.** What do I have right now is the one question my bank already answers. The questions worth building for are *what happened*, *when*, and *what did I think at the time* — and all three need a record that accumulates rather than one that gets overwritten.
 
@@ -70,7 +74,9 @@ And one more, from the way the 1C decade ended: you should be able to *keep* the
 
 [HomeAccounting](https://www.homeaccounting.com) is what those lessons look like taken literally.
 
-**The entry tax is gone.** monobank and PrivatBank push transactions in by themselves, so most of what a household spends never needs a human to type anything. What's left, you write as a sentence: send `coffee 45, taxi 200, groceries 380` to the Telegram bot and three categorized transactions land in the ledger.
+**Tracking should cost no time.** This is the requirement everything else was built around, and it's the one I'd hold the project to. monobank and PrivatBank push transactions in by themselves — for card spending, which is most of what a household does, the minutes-per-month figure is genuinely zero. Nobody types, nobody imports a file, nobody sits down on Sunday. The ledger fills itself while you're not looking.
+
+Cash and anything the feeds miss is the remainder, and there you write a sentence instead of filling a form: send `coffee 45, taxi 200, groceries 380` to the Telegram bot and three categorized transactions land in the ledger. Seconds, standing on the street, not minutes at a desk later.
 
 That's the LLM part, and it's deliberately not a chatbot. There's no assistant to converse with, no prompt to engineer. The model does one narrow job: turn the way a person actually writes about money — shorthand, mixed languages, three purchases in one line, no punctuation — into structured transactions with amounts, categories, and merchants. Prompting as an input method rather than a conversation. What makes it matter isn't that there's a model involved; it's that for the first time in eleven years, recording a purchase costs less effort than making it.
 
