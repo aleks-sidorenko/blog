@@ -1,8 +1,8 @@
 +++
-title = "HomeAccounting: Part 1 — Why I Built It"
+title = "Why Did I Build HomeAccounting?"
 date = 2026-09-25
 description = "Eleven years of tracking household money — one year in Excel, ten in 1C. What both tools got right, why neither survived, and the open-source, self-hostable, no-charge ledger I built out of the wreckage."
-path = "blog/2026/09/homeaccounting-01-why-i-built-it"
+path = "blog/2026/09/why-did-i-build-homeaccounting"
 [taxonomies]
 tags = ["haskell", "event-sourcing", "personal-finance", "self-hosting", "homeaccounting"]
 categories = ["programming"]
@@ -74,9 +74,15 @@ And one more, from the way the 1C decade ended: you should be able to *keep* the
 
 [HomeAccounting](https://www.homeaccounting.com) is what those lessons look like taken literally.
 
-**Tracking should cost no time.** This is the requirement everything else was built around, and it's the one I'd hold the project to. monobank and PrivatBank push transactions in by themselves — for card spending, which is most of what a household does, the minutes-per-month figure is genuinely zero. Nobody types, nobody imports a file, nobody sits down on Sunday. The ledger fills itself while you're not looking.
+**Tracking should cost no time.** This is the requirement everything else was built around, and the one I'd hold the project to. A connected bank imports transactions on its own — so for card spending, which is most of what a household does, the minutes-per-month figure is genuinely zero. Nobody types, nobody uploads anything, nobody sits down on Sunday. The ledger fills itself while you're not looking.
 
-Cash and anything the feeds miss is the remainder, and there you write a sentence instead of filling a form: send `coffee 45, taxi 200, groceries 380` to the Telegram bot and three categorized transactions land in the ledger. Seconds, standing on the street, not minutes at a desk later.
+**Banks are plugged in, not baked in.** monobank and PrivatBank came first for an entirely unglamorous reason: I live in Ukraine and they're my banks. That's the only reason. Nothing in the core of the system knows the name of a single bank — a provider is a self-contained module that declares what it can do, and adding one is that module plus a line in a registry.
+
+Providers come in two shapes, because banks differ in how much they're willing to give you. One is a live connection: fetch the accounts, fetch transactions for a date range, register a webhook so new ones arrive as they happen. That's the zero-time path. The other is a statement parser — CSV or XLSX, the file you can download from any bank's web interface — for the many banks that offer no API to anyone. It's the worse path, because downloading a file is a chore, and it is still the difference between a bank being supported and not.
+
+Each provider also declares where it operates — worldwide, or a specific set of countries — so you're offered the banks that make sense where you live. That's curation, not a border. The mechanism has no opinion about geography, and a provider for a German or Polish or American bank is exactly as much work as the ones that already exist. Ukraine is simply where the first three landed.
+
+**Manual entry never disappears — it only gets rare.** Cash, a bank nobody has written a provider for yet, the thing your partner paid for. There's an ordinary form for those, but needing it should be the exception; the normal path is to write a sentence. Send `coffee 45, taxi 200, groceries 380` to the Telegram bot and three categorized transactions land in the ledger — seconds, standing on the street, instead of minutes at a desk that evening.
 
 That's the LLM part, and it's deliberately not a chatbot. There's no assistant to converse with, no prompt to engineer. The model does one narrow job: turn the way a person actually writes about money — shorthand, mixed languages, three purchases in one line, no punctuation — into structured transactions with amounts, categories, and merchants. Prompting as an input method rather than a conversation. What makes it matter isn't that there's a model involved; it's that for the first time in eleven years, recording a purchase costs less effort than making it.
 
@@ -126,11 +132,11 @@ If you want to look: the [live demo](https://demo.homeaccounting.com) is seeded 
 
 Eleven years in, the tool finally fits the habit, instead of the other way around.
 
-This post was the *why*. Part 2 is the *what* and the *how*: the full feature set, how the bank integrations and the Telegram capture actually work, and what the inside of an event-sourced household ledger looks like.
+This post was the *why*. The next one — *What Is HomeAccounting?* — is the *what* and the *how*: the full feature set, how the bank integrations and the Telegram capture actually work, and what the inside of an event-sourced household ledger looks like.
 
 ---
 
 *Part of the **HomeAccounting** series:*
 
-1. **Why I Built It**
-2. Features and Internals *(coming soon)*
+1. **Why Did I Build HomeAccounting?**
+2. What Is HomeAccounting? *(coming soon)*
