@@ -80,7 +80,7 @@ And one more, from the way the 1C decade ended: you should be able to *keep* the
 
 The piece that knows how to talk to one particular bank is called a provider, and none of them are hardwired. Nothing in the core of the system knows the name of a single bank; a provider is a self-contained module that declares what it can do, and adding one is that module plus a line in a registry. Monobank and PrivatBank came first for an entirely unglamorous reason — I live in Ukraine and they're my banks. That's the only reason. They're the examples, not the design.
 
-Providers come in two shapes, because banks differ in how much they're willing to give you. One is a live connection: fetch the accounts, fetch transactions for a date range, register a webhook so new ones arrive as they happen. That's the genuinely zero-time path, and it's what Monobank and PrivatBank do today. The other is a statement parser — CSV or XLSX, the file you can download from your bank's web interface — for the many banks that publish no API to anyone. That one costs you a download a month, which isn't zero, but it's the difference between a bank being usable here and not.
+Providers come in two shapes, because banks differ in how much they're willing to give you. One is a live connection: fetch the accounts, fetch transactions for a date range, register a webhook so new ones arrive as they happen. That's the genuinely zero-time path, and it's what Monobank does today. The other is a statement parser — CSV or XLSX, the file you can download from your bank's web interface — for the many banks that publish no API to anyone. PrivatBank is one of them, for both personal and business accounts, so that's how it works here. It costs you a download a month, which isn't zero, but it's the difference between a bank being usable here and not.
 
 Each provider also declares where it operates — worldwide, or a specific set of countries — so you're offered the banks that make sense where you live. That's curation, not a border. The mechanism has no opinion about geography, and a provider for a German or Polish or American bank is exactly as much work as the ones that already exist. Ukraine is simply where the first three landed.
 
@@ -134,11 +134,11 @@ If you want to look: the [live demo](https://demo.homeaccounting.com) is seeded 
 
 Eleven years in, the tool finally fits the habit, instead of the other way around.
 
-This post was the *why*. The next one — *What Is HomeAccounting?* — is the *what* and the *how*: the full feature set, how the bank integrations and the Telegram capture actually work, and what the inside of an event-sourced household ledger looks like.
+This post was the *why*. The next one — [*What Is HomeAccounting?*](@/blog/2026-10-what-is-homeaccounting.md) — is the *what* and the *how*: the full feature set, how the bank integrations and the Telegram capture actually work, and what the inside of an event-sourced household ledger looks like.
 
 ---
 
 *Part of the **HomeAccounting** series:*
 
 1. **Why Did I Build HomeAccounting?**
-2. What Is HomeAccounting? *(coming soon)*
+2. [What Is HomeAccounting?](@/blog/2026-10-what-is-homeaccounting.md)
