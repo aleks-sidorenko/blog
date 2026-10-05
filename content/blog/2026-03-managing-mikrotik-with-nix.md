@@ -32,7 +32,7 @@ The exported config was also opaque. It was RouterOS scripting language — a fl
 
 I discovered [terranix](https://terranix.org) — a tool that generates Terraform JSON from Nix expressions — and the [routeros Terraform provider](https://registry.terraform.io/providers/terraform-routeros/routeros/latest). Instead of scripting the router directly, I could describe individual resources declaratively and let Terraform figure out the diff.
 
-I built a set of Nix modules inside my [nix-config](https://github.com/aleks-sidorenko/nix-config) repository under `infra/router/`. Each module handled one aspect of the router: system settings, DHCP, DNS, firewall, WiFi.
+I built a set of Nix modules inside my [nix-config](https://github.com/aleks-sidorenko/nix-config/tree/myla/infra/router) repository under `infra/router/`. Each module handled one aspect of the router: system settings, DHCP, DNS, firewall, WiFi.
 
 **What worked.** This was a huge step forward. Changes were finally incremental — Terraform would plan the diff, show me exactly what would change, and apply only what was needed. No more factory resets. I could add a DHCP lease and see a plan that said "1 resource to add, 0 to change, 0 to destroy." I could review the plan, approve it, and the router would update in seconds while the network stayed up.
 
