@@ -141,7 +141,7 @@ The eventium post describes read models as [polling subscribers](@/blog/2026-04-
 
 Every saga and every read model runs **inside the write transaction**. eventium's in-process publisher dispatches depth-first: the posting event triggers the debit, the debit triggers the credit and the completion, the read-model tables are updated and their checkpoints advanced — and only then does the database transaction commit. If any step throws, none of it happened.
 
-For a distributed system this would be the wrong call. For a household ledger it removes an entire class of user-visible weirdness: there's no moment when the transaction exists but the balance hasn't moved, no spinner waiting for a projection to catch up, no "refresh in a second". When the API returns, the books are consistent. Event sourcing gives me the history; I don't also need it to give me eventual consistency, so I opted out.
+When the API returns, the books are consistent. Why that's the right default here, when most CQRS writing treats eventual consistency as part of the package, gets its own section below.
 
 There's one small piece of Haskell that makes it work. The sagas need a writer to dispatch their commands into, and that writer has to publish to the sagas:
 
@@ -162,6 +162,32 @@ accountingEventStoreWriterWithRaw telemetry rawWriter config pmFactory persisten
 ```
 
 `publishingWriter` is defined in terms of `globalPublisher`, which is defined in terms of the sagas, which take `publishingWriter`. In most languages that's a dependency-injection framework or a mutable setter. In Haskell it's a `let`. And because the stores are [records rather than typeclasses](@/blog/2026-04-eventium-design-and-internals.md#records-not-typeclasses), the whole write path — raw store, telemetry, codec, read models, sagas — is assembled from values in fifteen lines.
+
+### Consistency
+
+CQRS and event sourcing usually arrive bundled with eventual consistency, often presented as if it were part of the pattern. It isn't. It's a trade: you accept that reads lag behind writes, and in exchange you get something specific. So the right question isn't "is eventual consistency good?" but "what would it buy *this* system, and what would it cost?"
+
+**What it buys, in general.** Read models that scale independently of the write side. A slow or broken consumer that can't hold up writes. Services that own their own data and can live behind a network partition. More write throughput, because a write only has to append to the log and can leave the projecting to someone else.
+
+**What it would buy here: almost nothing.** Go down that list with a household ledger in mind.
+
+- *Independent scaling.* A household produces a few dozen events on a busy day. The whole production store was around four thousand events after months of use. There's nothing to scale.
+- *Isolation and partitions.* There's one backend process and one PostgreSQL database. The read models are tables in the same database as the event log. Updating them in the same transaction is a local operation, not a distributed one, and there's no network between the two sides for a partition to happen on.
+- *Write throughput.* This is the one that looks real, and it's the most surprising non-answer. As the [eventium post](@/blog/2026-04-eventium-design-and-internals.md#postgresql-exclusive-locks) explains, the PostgreSQL writer takes an exclusive lock on the events table so the global sequence has no gaps. Writes are serialized *regardless* of how the read models are wired. Moving projection work out of the transaction would shorten the time the lock is held, but it wouldn't let two writes run in parallel. At household volume, a slightly longer lock is invisible.
+
+**What it would cost: quite a lot.** None of it is exotic. It's the ordinary price of eventual consistency, and every item would land on a person looking at their own money.
+
+- *Read-your-own-writes.* You type `coffee 45`, the bot says it's recorded, you open the app, and the coffee isn't there yet. Or it is, but the balance hasn't moved. In a to-do app that's a glitch. In a ledger it's a reason to stop trusting the numbers, and the [previous post](@/blog/2026-09-why-did-i-build-homeaccounting.md) was about what happens when you stop trusting the numbers.
+- *Half-finished money.* The posting saga debits one account and then credits another. Run asynchronously, there's a window in which the money has left your card and not yet arrived anywhere, and every report computed in that window is wrong. With the saga inside the transaction, nobody can ever observe that state, because it never commits.
+- *Failure handling as a subsystem.* Asynchronous sagas need retries, compensations that run later, idempotent handlers for at-least-once delivery, and somewhere for poison messages to go. Synchronously, a failed step is a rolled-back transaction and an error response. The user retries, and there's nothing to clean up.
+- *Invariants that span the write and the read side.* Import dedup is the sharpest example. The `imported_transactions` row is written in the same transaction as the event it guards. If the two were updated separately, two imports running close together could both check the table, both find nothing, and both post — the exact duplicate the [import section](#importing-the-same-thing-twice) below spends a thousand words preventing.
+- *Honest answers.* The prompt handler [checks](#the-llm-only-fills-in-a-form) that a transaction actually posted, not just that it was accepted. That only works because the saga's outcome is known when the request returns. Asynchronously, the honest reply to "did it work?" is "probably — check again in a second".
+
+**What I give up instead.** Every write pays for every read model and every saga that cares about it, so write latency grows with the number of projections. The [saga snapshot fix](#sagas-needed-snapshots-too) further down exists because that cost briefly got out of hand. And a bug in a projection doesn't fall behind quietly — it fails the write. For money I think that's the right failure mode: loud and immediate, not a projection that's been silently wrong for a week. But it's a real constraint, and it means projection code must be as careful as domain code.
+
+**And it's reversible.** Nothing here gives up event sourcing. The log is still the source of truth, and every read model still has its own checkpoint and can be rebuilt from scratch. eventium's `ReadModel` is the same record whether it's fed synchronously or by a polling subscription, so if a projection ever does need to run behind — a heavy analytics view, say — moving that one to polling is a change to how it's wired, not a redesign.
+
+Eventual consistency does still exist in the system — just at the edges, where it's real. The web app learns about changes made elsewhere, such as from the Telegram bot, by polling a per-user data-version counter, so a second device can be a few seconds behind. And the ledger as a whole is only ever eventually consistent with your bank: that gap is the domain itself, and reconciliation is how it's handled. The server never makes you wait on itself.
 
 ## Corrections without overwrites
 
@@ -351,7 +377,7 @@ One detail I'm glad got caught. A command being *accepted* isn't the same as a t
               pure (Left (FailedTransaction {index = idx, reason = reason}))
 ```
 
-That check is only possible because the saga is synchronous. With eventually-consistent read models, the honest answer to "did it work?" would be "probably, ask again in a second".
+That check is only possible because the saga is synchronous — one of the reasons spelled out under [Consistency](#consistency).
 
 ## Running eventium for real
 
