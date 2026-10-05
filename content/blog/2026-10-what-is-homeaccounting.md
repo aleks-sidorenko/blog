@@ -10,7 +10,7 @@ categories = ["programming"]
 
 The [previous post](@/blog/2026-09-why-did-i-build-homeaccounting.md) was the *why*: eleven years of tracking household money, two tools that didn't survive, and one requirement left standing at the end — recording what you spend should cost no time at all.
 
-This one is the *what* and the *how*. First, what you can actually do with [HomeAccounting](https://www.homeaccounting.com) today. Then the inside: how a transaction gets from a bank statement or a Telegram message to a balance, what happens when you correct one, and what running [eventium](@/blog/2026-04-eventium-design-and-internals.md) in a real application taught me that the library's examples never did.
+This one is the *what* and the *how*. [HomeAccounting](https://www.homeaccounting.com) is an open-source, free accounting system for households — AGPL-licensed, built in the open, and meant to be shaped by the people who use it, not just by me. First, what you can actually do with it today. Then the inside: how a transaction gets from a bank statement or a Telegram message to a balance, what happens when you correct one, and what running [eventium](@/blog/2026-04-eventium-design-and-internals.md) in a real application taught me that the library's examples never did.
 
 <!-- more -->
 
@@ -36,7 +36,7 @@ Before the internals, the tour. This is the feature set as it exists in the code
 
 **Sign-in.** Email and password, Google, GitHub, Microsoft — or no web account at all: you can sign up from inside Telegram.
 
-**And you can keep it.** A [seeded demo](https://demo.homeaccounting.com) with no signup, the [hosted app](https://homeaccounting.com/app) that's free during the beta, and a [self-host stack](https://github.com/homeaccounting/docker) that is literally the same Compose file the hosted instance runs.
+**And you can keep it.** All of it is open source and free — no paid tier, no feature held back. A [seeded demo](https://demo.homeaccounting.com) with no signup, the [hosted app](https://homeaccounting.com/app) that's free during the beta, and a [self-host stack](https://github.com/homeaccounting/docker) that is literally the same Compose file the hosted instance runs.
 
 That's the surface. The rest of this post is about what's underneath it.
 
@@ -430,7 +430,19 @@ Taken together, the design comes down to one rule repeated at every boundary: **
 
 That's what event sourcing bought here, more than audit trails: the freedom to be wrong about interpretation and fix it later, because the facts underneath never moved.
 
-The code is all at [github.com/homeaccounting](https://github.com/homeaccounting) — the backend, the web app and the stack. The [demo](https://demo.homeaccounting.com) needs no signup. If you want to write a provider for your bank, the descriptor above is the whole interface, and I'd genuinely like to help.
+## Built in the open
+
+HomeAccounting is open source and free, and I want it to be community-driven rather than a one-person project with a public repo. Everything is at [github.com/homeaccounting](https://github.com/homeaccounting) — the backend, the web app and the deployment stack — and contributions are genuinely welcome.
+
+The design above has a lot of places built to be extended, and most of them don't need you to know event sourcing, or even much Haskell:
+
+- **Your bank.** A provider is the descriptor above plus a parser or an API client. If your bank exports a CSV, that's a pure function from bytes to rows — the most self-contained contribution in the codebase.
+- **Your currency.** The currency set is meant to grow with the people using it.
+- **Your language.** The UI, the bot and the default categories are translation catalogs, and English and Ukrainian are only the first two.
+- **Your categories.** The MCC table and the default category tree are plain data, and they were written from one household's point of view.
+- **The rough edges.** Everything in [What it doesn't do yet](#what-it-doesn-t-do-yet) is a real, scoped piece of work.
+
+Pull requests, issues, bug reports and "this is how my household actually does it" are all useful. The [community links are here](https://www.homeaccounting.com/community), and the [demo](https://demo.homeaccounting.com) needs no signup if you just want to look first.
 
 ---
 
