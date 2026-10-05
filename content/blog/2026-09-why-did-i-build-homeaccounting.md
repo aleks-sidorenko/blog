@@ -134,11 +134,11 @@ If you want to look: the [live demo](https://demo.homeaccounting.com) is seeded 
 
 Eleven years in, the tool finally fits the habit, instead of the other way around.
 
-This post was the *why*. The next one — *What Is HomeAccounting?* — is the *what* and the *how*: the full feature set, how the bank integrations and the Telegram capture actually work, and what the inside of an event-sourced household ledger looks like.
+This post was the *why*. The next one — [*What Is HomeAccounting?*](@/blog/2026-10-what-is-homeaccounting.md) — is the *what* and the *how*: the full feature set, how the bank integrations and the Telegram capture actually work, and what the inside of an event-sourced household ledger looks like.
 
 ---
 
 *Part of the **HomeAccounting** series:*
 
 1. **Why Did I Build HomeAccounting?**
-2. What Is HomeAccounting? *(coming soon)*
+2. [What Is HomeAccounting?](@/blog/2026-10-what-is-homeaccounting.md)
