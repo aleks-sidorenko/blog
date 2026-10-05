@@ -18,7 +18,7 @@ This one is the *what* and the *how*. First, what you can actually do with [Home
 
 Before the internals, the tour. This is the feature set as it exists in the code right now, not a roadmap.
 
-**Accounts.** Cash, bank accounts, e-wallets, assets, loans. Each account has one currency — UAH, USD, EUR or GBP for now — and an optional overdraft limit. Accounts can be renamed, retyped, closed and reopened. An account's currency can be changed only until it has its first transaction, because after that the history would stop meaning what it says.
+**Accounts.** Cash, bank accounts, e-wallets, assets, loans. Each account has its own currency and an optional overdraft limit. Accounts can be renamed, retyped, closed and reopened. An account's currency can be changed only until it has its first transaction, because after that the history would stop meaning what it says.
 
 **Transactions.** Four kinds: income, expense, transfer, and a balance adjustment for when the ledger and reality disagree and you just want them to agree. Income and expense can be *split* across several categories — one supermarket receipt, three categories. Transfers can cross currencies: move UAH to a USD account and both amounts are stored, along with the rate. On top of that: labels, contacts, a free-text description, and relations between transactions — this one refunds that one, these two were merged into one.
 
@@ -422,7 +422,7 @@ The same honesty as last time, in more detail.
 
 **"As of" means business time.** You can ask what an account's balance was on any past date, and it's computed from the event log, not a stored snapshot. What you can't yet ask is what the ledger *said* on that date, before later corrections. The events to answer that are all there — nothing has been thrown away — but the query isn't built.
 
-**Two languages, four currencies, three banks.** The mechanisms don't care about any of those numbers. The data does.
+**Two languages, three banks.** The mechanisms don't care about any of those numbers. The data does.
 
 ## Where this leaves it
 
