@@ -1,24 +1,24 @@
 +++
 title = "Haskell for Scala Developers: Part 4 — Objects and Modules"
 date = 2026-07-22
-description = "For working Scala developers picking up Haskell: the claim that most of Scala's OOP machinery answers questions Haskell never asks — inheritance as a sum type plus a function, the expression problem, mixins as plain functions, five module constructs collapsing into one keyword, encapsulation through export lists and smart constructors, and mutation as an effect rather than a default."
+description = "For Scala developers learning Haskell: why most of Scala's OOP machinery solves problems Haskell doesn't have. Inheritance as a sum type plus a function, the expression problem, mixins as plain functions, one module keyword instead of five constructs, encapsulation through export lists and smart constructors, and mutation as an effect."
 path = "blog/2026/07/haskell-for-scala-devs-04-oop"
 [taxonomies]
 tags = ["haskell", "scala", "functional-programming", "haskell-for-scala-devs"]
 categories = ["programming"]
 +++
 
-Here's a thesis worth defending: **most of Scala's object-oriented machinery is answers to questions Haskell never asks.** Inheritance, trait linearization, the five different places a definition can live, `private` and its dozen qualifiers — a large fraction of it exists to manage complexity that a language built on data and functions simply doesn't generate.
+Here's a thesis worth defending: **most of Scala's object-oriented machinery is answers to questions Haskell never asks.** Inheritance, trait linearization, the five different places a definition can live, `private` and its dozen qualifiers: a lot of it exists to manage complexity that a language built on data and functions doesn't generate.
 
-That's the spicy half. Here's the fair half. Four of the things OOP was actually solving are real problems: polymorphic dispatch, code reuse, modularity, and controlled mutation with encapsulation. Every language needs answers to those. The argument of this post is not that Haskell ignores them — it's that Haskell answers each with something smaller and more honest than a class hierarchy, and that the smaller answer is usually the better one. Where Scala's version earns its keep, I'll say so; there are two or three places it genuinely does.
+That's the spicy half. Here's the fair half. OOP was solving four real problems: polymorphic dispatch, code reuse, modularity, and controlled mutation with encapsulation. Every language needs answers to those. Haskell doesn't ignore them. It answers each with something smaller and more honest than a class hierarchy, and I think the smaller answer is usually the better one. Where Scala's version earns its keep, I'll say so; it does in two or three places.
 
-One running example the whole way down: a notification service. It's the canonical OOP teaching object — a polymorphic `send`, a hierarchy of channels, mixins that add retry and rate-limiting, and a private counter tracking deliveries. If you've sat through an "intro to OOP" course you've written this exact class. We're going to watch it dissolve into a handful of data types and functions, and I'll argue that what's left is what you actually wanted.
+I'll use one running example throughout: a notification service. It's the classic OOP teaching object, with a polymorphic `send`, a hierarchy of channels, mixins that add retry and rate-limiting, and a private counter tracking deliveries. If you've sat through an "intro to OOP" course, you've written this exact class. We'll watch it dissolve into a handful of data types and functions, and I'll argue that what's left is what you actually wanted.
 
 <!-- more -->
 
 ## The anchor: a notification service
 
-Here's the object, in idiomatic Scala 3. An abstract base with a polymorphic `send`, and three concrete channels:
+Here's the object in idiomatic Scala 3: an abstract base with a polymorphic `send`, and three concrete channels.
 
 ```scala
 abstract class Notifier:
@@ -54,13 +54,13 @@ notifiers.foreach(_.send("deploy finished"))
 [push -> dev-42] deploy finished
 ```
 
-Nothing wrong with this. It's the code the language wants you to write, and every Scala developer reading this could have typed it from memory. The question is what each piece is *for*, and whether Haskell needs the same pieces to do the same job. It turns out the answer is "no" more often than the OOP instinct expects — starting with the base class itself.
+Nothing wrong with this. It's the code the language wants you to write, and any Scala developer could type it from memory. The question is what each piece is *for*, and whether Haskell needs the same pieces for the same job. More often than the OOP instinct expects, it doesn't. Let's start with the base class.
 
 ## Inheritance is a sum type plus a function
 
-Strip `Notifier` down to what it actually does. It's two things fused into one construct: a **set of alternatives** (email, sms, push) and an **operation over them** (`send`). OOP welds those together — the alternatives are subclasses, the operation is a method they each override, and dispatch is the virtual-method lookup that picks the right override at runtime.
+Strip `Notifier` down to what it does. It fuses two things into one construct: a set of alternatives (email, sms, push) and an operation over them (`send`). In OOP the alternatives are subclasses, the operation is a method each one overrides, and dispatch is the virtual-method lookup that picks the right override at runtime.
 
-Haskell pulls them apart. The alternatives become a sum type; the operation becomes a function that pattern-matches. Here's the whole hierarchy above, as data plus one function:
+Haskell pulls them apart. The alternatives become a sum type, and the operation becomes a function that pattern-matches. Here's the whole hierarchy as data plus one function:
 
 ```haskell
 data Notifier
@@ -85,24 +85,24 @@ main = do
 [push -> dev-42] deploy finished
 ```
 
-Same output, and — this is the part worth sitting with — no base class, no `override`, no virtual dispatch, no inheritance at all. The three subclasses became three constructors of one type. The polymorphic method became one function with three equations. What the runtime did implicitly (look at the object, find its `send`), the `case` does explicitly (look at the constructor, pick the branch). The dispatch didn't disappear; it moved from a vtable you can't see into a pattern match you can.
+Same output, with no base class, no `override`, no virtual dispatch, and no inheritance at all. The three subclasses became three constructors of one type. The polymorphic method became one function with three equations. What the runtime did implicitly (look at the object, find its `send`), the `case` does explicitly (look at the constructor, pick the branch). The dispatch didn't disappear. It moved from a vtable you can't see into a pattern match you can.
 
-Two things fall out of this immediately, and they're the reason I'd reach for the Haskell version most of the time.
+Two things fall out of this right away, and they're why I'd reach for the Haskell version most of the time.
 
-**Exhaustiveness.** Add a fourth channel — `Slack String` — to the type, and GHC will warn you at every function that pattern-matches `Notifier` and forgot the new case. The compiler hands you a to-do list of everything you need to update. In the Scala hierarchy, adding `SlackNotifier` compiles cleanly and silently; nothing tells you that the `msg match` buried in some formatting helper three files away now has an unhandled case, because there's no closed set to check against. (Scala's `sealed trait` recovers this, and I'll come back to that — but the *open* class hierarchy above, the one inheritance actually gives you, does not.)
+**Exhaustiveness.** Add a fourth channel, `Slack String`, to the type, and GHC warns you at every function that pattern-matches on `Notifier` and is missing the new case. The compiler hands you a to-do list. In the Scala hierarchy, adding `SlackNotifier` compiles cleanly. Nothing tells you that the `msg match` buried in a formatting helper three files away now has an unhandled case, because there's no closed set to check against. (Scala's `sealed trait` recovers this, and I'll come back to it. The *open* class hierarchy above, the one inheritance gives you, does not.)
 
-**The operation is just a value.** `send` is an ordinary top-level function. It isn't trapped inside the type, it doesn't need `this`, and it composes like any other function. Want a second operation — `priority :: Notifier -> Int`? Write it. You don't touch the `Notifier` type and you don't touch any subclass, because there are no subclasses to touch.
+**The operation is just a value.** `send` is an ordinary top-level function. It isn't trapped inside the type, it doesn't need `this`, and it composes like any other function. Want a second operation, `priority :: Notifier -> Int`? Write it. You don't touch the `Notifier` type or any subclass, because there are no subclasses.
 
 ### The expression problem, stated honestly
 
-That last point is exactly half of a genuine trade-off, and this is the section's fair half. There are two directions you can extend this design in — **new cases** (a Slack channel) and **new operations** (a `priority` function) — and no single representation makes both free. This is the *expression problem*, and it's the real content underneath the OOP-versus-FP argument.
+That last point is half of a real trade-off, and this is the fair half of the section. You can extend this design in two directions, new *cases* (a Slack channel) and new *operations* (a `priority` function), and no single representation makes both free. This is the *expression problem*, and it's what the OOP-versus-FP argument is really about.
 
-- The **class hierarchy** makes new *cases* cheap: `class SlackNotifier extends Notifier` adds a channel without editing a single existing class. It makes new *operations* expensive: a new abstract method on `Notifier` forces an edit to every subclass.
-- The **sum type** makes new *operations* cheap: a new function over `Notifier` touches nothing that exists. It makes new *cases* expensive: a new constructor forces an edit to every function (though, per above, the compiler tells you exactly where).
+- The class hierarchy makes new *cases* cheap: `class SlackNotifier extends Notifier` adds a channel without editing a single existing class. It makes new *operations* expensive: a new abstract method on `Notifier` forces an edit to every subclass.
+- The sum type makes new *operations* cheap: a new function over `Notifier` touches nothing that exists. It makes new *cases* expensive: a new constructor forces an edit to every function (though, as above, the compiler tells you exactly where).
 
-Neither wins outright. They optimize for opposite kinds of change. The honest guidance is: if your set of variants is stable and you keep inventing operations over it — which describes most domain modeling, most compilers, most business logic — the sum type is the better bet, and the exhaustiveness checking is a real safety net. If your set of operations is stable and you keep adding variants — plugins, drivers, a UI toolkit's widget zoo — the open hierarchy's axis of extension is the one you want.
+Neither wins outright. They optimize for opposite kinds of change. My guidance: if your set of variants is stable and you keep inventing operations over it (most domain modeling, most compilers, most business logic), the sum type is the better bet, and exhaustiveness checking is a real safety net. If your set of operations is stable and you keep adding variants (plugins, drivers, a UI toolkit's widget zoo), you want the open hierarchy's axis of extension.
 
-And here's the thing: Haskell gives you *that* axis too, when you want it. A typeclass is an open set of cases sharing a fixed operation — exactly the class-hierarchy shape:
+Haskell gives you *that* axis too, when you want it. A typeclass is an open set of cases sharing a fixed operation, which is exactly the class-hierarchy shape:
 
 ```haskell
 class Channel a where
@@ -118,13 +118,13 @@ instance Channel Sms where
   send (Sms num) msg = putStrLn ("[sms -> " ++ num ++ "] " ++ msg)
 ```
 
-Now adding a `Slack` channel is a new `instance` in its own module, touching nothing — the open-extension direction, recovered. The typeclass *is* Haskell's version of the interface-with-implementations pattern, and it's the tool you pick when the class hierarchy's axis is the one you need. What Haskell refuses to do is make that the *default* the way `class` does in Scala. You choose your axis of extension per problem — sum type for stable-variants, typeclass for stable-operations — instead of inheriting one axis for everything because it's the only construct the language hands you.
+Now adding a `Slack` channel is a new `instance` in its own module, touching nothing else. That's the open-extension direction back. The typeclass *is* Haskell's version of the interface-with-implementations pattern, and you pick it when you need the class hierarchy's axis. What Haskell won't do is make it the *default*, the way `class` is in Scala. You choose your axis of extension per problem (sum type for stable variants, typeclass for stable operations) instead of getting one axis for everything because it's the only construct the language hands you.
 
-Scala can express both too; `sealed trait` plus pattern matching is the sum type, and it's genuinely good. The difference is one of gravity. In Scala the path of least resistance is the open hierarchy — it's what `class extends` gives you and what tutorials teach first. In Haskell the path of least resistance is the closed sum type, and you reach for the open one deliberately. My claim is only that the closed one is the right default more often than OOP's gravity suggests, and that the language pulling you toward it is a feature.
+Scala can express both too; `sealed trait` plus pattern matching is the sum type, and it's good. The difference is gravity. In Scala the path of least resistance is the open hierarchy: it's what `class extends` gives you and what tutorials teach first. In Haskell the path of least resistance is the closed sum type, and you reach for the open one on purpose. I'm only claiming that the closed one is the right default more often than OOP's gravity suggests, and that a language pulling you toward it is a feature.
 
 ## Mixins are just functions
 
-The second thing the hierarchy was doing is code reuse across channels. Say every notifier should retry on failure, and some should be rate-limited. In Scala the idiomatic tool is the stackable trait — `abstract override` with `super`, mixed in at the class definition or at the `new` site:
+The hierarchy's second job is code reuse across channels. Say every notifier should retry on failure, and some should be rate-limited. In Scala the idiomatic tool is the stackable trait: `abstract override` with `super`, mixed in at the class definition or at the `new` site.
 
 ```scala
 trait Retrying extends Notifier:
@@ -151,9 +151,9 @@ notifier.send("hello")
 [email -> a@x.io] hello
 ```
 
-This is real power, and it's also the place OOP complexity concentrates. The behavior of that `send` depends on **linearization** — the order Scala flattens `EmailNotifier with RateLimited with Retrying` into a single chain of `super` calls. Get the order wrong and rate-limiting wraps retrying instead of the other way around. Change a mixin three levels up and the linearization shifts under you. The diamond problem — two traits inheriting a common base, mixed into one class — is a whole topic with its own rules. All of that machinery exists to answer one question: *in what order do these bits of behavior wrap each other?*
+This is real power, and it's also where OOP complexity piles up. The behavior of that `send` depends on **linearization**, the order in which Scala flattens `EmailNotifier with RateLimited with Retrying` into a single chain of `super` calls. Get the order wrong and rate-limiting wraps retrying instead of the other way around. Change a mixin three levels up and the linearization shifts under you. The diamond problem (two traits inheriting a common base, mixed into one class) is a whole topic with its own rules. All of that machinery answers one question: *in what order do these bits of behavior wrap each other?*
 
-Haskell asks the question directly and answers it with function composition. A "mixin" is a function that takes a notifier and returns a decorated one. The notifier, recall, is data — so let me switch to the representation that makes decoration natural, an object as a record of functions:
+Haskell asks that question directly and answers it with function composition. A "mixin" is a function that takes a notifier and returns a decorated one. Since the notifier is data, I'll switch to the representation that makes decoration natural, an object as a record of functions:
 
 ```haskell
 data Notifier = Notifier
@@ -168,7 +168,7 @@ email addr = Notifier
   }
 ```
 
-That record is an object: a bundle of behavior (`send`) closed over its private state (`addr`). No keyword introduced it — it's the same `data` declaration we've been using all along. Now the mixins are functions `Notifier -> Notifier`:
+That record is an object: a bundle of behavior (`send`) closed over its private state (`addr`). No keyword introduced it; it's the same `data` declaration we've used all along. Now the mixins are functions `Notifier -> Notifier`:
 
 ```haskell
 retrying :: Notifier -> Notifier
@@ -199,15 +199,15 @@ main = do
 [email -> a@x.io] hello
 ```
 
-`rateLimited . retrying` is the linearization, and it's *right there in the source* — `rateLimited` wraps `retrying` wraps the base, because that's the order the composition reads. There's no flattening algorithm to reason about, no `super` chain assembled behind your back, no diamond, no `abstract override`. Want to swap the order? Swap the two names. The thing Scala's trait system spends real conceptual weight computing for you is, in Haskell, just the order you wrote your function composition in — which is to say, it's not a feature, because it never became a problem.
+`rateLimited . retrying` is the linearization, and it's *right there in the source*: `rateLimited` wraps `retrying`, which wraps the base, because that's how the composition reads. There's no flattening algorithm to reason about, no `super` chain assembled behind your back, no diamond, no `abstract override`. Want to swap the order? Swap the two names. Scala's trait system spends real conceptual weight computing this for you. In Haskell it's just the order you wrote your composition in, so it never became a problem that needed a feature.
 
-The honest counterweight: Scala's stackable traits *do* buy you something the decorator functions don't quite — a mixin can be applied at the type level so that `EmailNotifier with Retrying` is a distinct type the compiler tracks, and you can constrain code to "any Notifier that is Retrying." In Haskell that's a different tool again (a typeclass constraint, or a phantom type), not the decorator. But for the overwhelmingly common case — "wrap this behavior around that one, in this order" — the function is the whole answer, and it's an answer you can read off the page.
+The honest counterweight: Scala's stackable traits *do* buy you something the decorator functions don't quite. A mixin can apply at the type level, so `EmailNotifier with Retrying` is a distinct type the compiler tracks, and you can constrain code to "any Notifier that is Retrying." In Haskell that's a different tool (a typeclass constraint, or a phantom type), not the decorator. But for the common case, "wrap this behavior around that one, in this order," the function is the whole answer, and you can read it off the page.
 
-There's a second flavor of reuse, too: behavior shared across *types* rather than wrapped around one value — a `Formattable` that every channel implements. That's the typeclass with default methods: Scala's `trait` with concrete methods that classes inherit is Haskell's `class` with default method implementations that instances inherit. Same mechanism, and the one piece of the `trait` that survives the translation intact.
+There's a second kind of reuse: behavior shared across *types* rather than wrapped around one value, like a `Formattable` that every channel implements. That's the typeclass with default methods. Scala's `trait` with concrete methods that classes inherit is Haskell's `class` with default method implementations that instances inherit. Same mechanism, and the one piece of the `trait` that survives the translation intact.
 
 ## Five constructs, one keyword
 
-Scala has a remarkable number of places a definition can live, and each has its own lookup rules. There's the `package`. There's the `object` (a singleton — Scala's answer to statics and to modules-as-values). There's the `package object` (things scoped to a whole package). There's the **companion object** (an `object` with the same name as a class, which gets to see the class's privates and is where you put factory methods and `given`s). And there's the class or trait body itself. Five constructs, five sets of visibility and resolution rules, and a running background question every Scala developer carries: *where should this definition go, and how will callers find it?*
+Scala has a remarkable number of places a definition can live, each with its own lookup rules. There's the `package`. There's the `object` (a singleton, Scala's answer to statics and to modules-as-values). There's the `package object` (things scoped to a whole package). There's the companion object (an `object` with the same name as a class, which can see the class's privates and is where you put factory methods and `given`s). And there's the class or trait body itself. That's five constructs with five sets of visibility and resolution rules, and a question every Scala developer carries around: *where should this definition go, and how will callers find it?*
 
 ```scala
 package notify
@@ -221,7 +221,7 @@ package object util:                    // package-wide helpers
   def truncate(s: String): String = s.take(140)
 ```
 
-Haskell has one construct: the `module`. A file is a module. It has a name, an export list, and a set of imports. That's the entire system.
+Haskell has one construct: the `module`. A file is a module. It has a name, an export list, and a set of imports. That's the whole system.
 
 ```haskell
 module Notify
@@ -239,19 +239,19 @@ truncate :: String -> String
 truncate = take 140
 ```
 
-Everything the five Scala constructs were doing collapses into "top-level definitions in a module, some exported." The companion object's factory methods? Top-level functions. The companion's privileged access to the class internals? Automatic — anything in the module can see anything else in the module, so a smart constructor sitting next to its type sees the constructor without ceremony. The `package object`'s shared helpers? Top-level functions, exported. Statics on a class? There's no class and no instance-versus-static distinction to make; there are only values and functions, and a "static method" is a function that doesn't take the type as an argument.
+Everything the five Scala constructs did becomes "top-level definitions in a module, some exported." The companion object's factory methods? Top-level functions. The companion's privileged access to class internals? Automatic: anything in a module can see anything else in that module, so a smart constructor next to its type sees the constructor without ceremony. The `package object`'s shared helpers? Top-level functions, exported. Statics on a class? There's no class and no instance-versus-static distinction. There are only values and functions, and a "static method" is a function that doesn't take the type as an argument.
 
-Scala has five lookup paths because it has five places things can live, and the compiler has to search all of them (locals, imports, companions, package objects, givens) to resolve a name or an implicit. Haskell has essentially one lookup path for names — what a module imports, explicitly — because there's one place things live. The `instance` mechanism is the one piece that resolves globally rather than by import, and it's deliberately the *only* thing that does. Everything else you find by importing the module it's in.
+Scala has five lookup paths because it has five places things can live, and the compiler has to search all of them (locals, imports, companions, package objects, givens) to resolve a name or an implicit. Haskell has essentially one lookup path for names, what a module explicitly imports, because there's one place things live. The `instance` mechanism resolves globally rather than by import, and it's deliberately the *only* thing that does. Everything else you find by importing its module.
 
-Is anything lost? A little. Scala's `object` is genuinely a value — you can pass a module around, store it in a field, swap it at runtime for a test double. Haskell modules are compile-time only; you can't pass a module as an argument. When you want that "module as a first-class, swappable thing" — dependency injection, in a word — you reach for a record of functions (the `Notifier` record above is exactly this shape) or the `ReaderT`/effect-handler machinery you'd reach for with effects. So Scala folds two ideas — namespacing and runtime-swappable components — into the single word `object`, and Haskell splits them: `module` for namespacing, records/effects for swappable components. I think the split is clarifying, but it's a real difference, not a strict win, and it's the one place the module comparison isn't lopsided.
+Is anything lost? A little. Scala's `object` is a real value: you can pass a module around, store it in a field, or swap it for a test double at runtime. Haskell modules exist only at compile time; you can't pass one as an argument. When you want a first-class, swappable module (dependency injection, in a word), you reach for a record of functions (the `Notifier` record above has exactly this shape) or the `ReaderT`/effect-handler machinery you'd use for effects. So Scala folds two ideas, namespacing and runtime-swappable components, into the single word `object`, and Haskell splits them: `module` for namespacing, records/effects for swappable components. I find the split clarifying, but it's a real difference, not a strict win, and it's the one place the module comparison isn't lopsided.
 
 ## Encapsulation without `private`
 
-Encapsulation is the survivor everyone worries about first. If there's no class, where does `private` go? How do you stop callers from constructing an invalid value or poking at internals?
+Encapsulation is the one everyone worries about first. If there's no class, where does `private` go? How do you stop callers from building an invalid value or poking at internals?
 
-Scala attaches visibility to members: `private`, `protected`, `private[this]`, `private[packagename]`, and — the modern, best answer — `opaque type`. The unit of protection is the member, and there's a qualifier for nearly every scope you might mean.
+Scala attaches visibility to members: `private`, `protected`, `private[this]`, `private[packagename]`, and the modern, best answer, `opaque type`. The unit of protection is the member, and there's a qualifier for nearly every scope you might mean.
 
-Haskell attaches visibility to the module's **export list**, and gets most of the same outcomes with one mechanism. The trick that does the heavy lifting is exporting a *type* without exporting its *constructor*:
+Haskell attaches visibility to the module's **export list** and gets most of the same results with one mechanism. The trick that does most of the work is exporting a *type* without exporting its *constructor*:
 
 ```haskell
 module Email
@@ -271,20 +271,20 @@ emailAddress :: Email -> String
 emailAddress (Email s) = s
 ```
 
-Note the export list: `Email`, not `Email(..)`. The type name is public; the `Email` data constructor is private to this module. Outside the module, the *only* way to obtain an `Email` is `mkEmail`, which enforces the invariant (there's an `@` in there). Nobody can write `Email "not an address"` from another module — the constructor isn't in scope. This is the **smart constructor** pattern, and it's how Haskell says "this value is always valid by construction," the thing OOP tries to get with a private field plus a validating constructor plus disciplined getters.
+Note the export list: `Email`, not `Email(..)`. The type name is public; the `Email` data constructor is private to this module. Outside the module, the *only* way to get an `Email` is `mkEmail`, which enforces the invariant (there's an `@` in there). Nobody in another module can write `Email "not an address"`, because the constructor isn't in scope. This is the **smart constructor** pattern. It's how Haskell says "this value is always valid by construction," which OOP tries to get with a private field plus a validating constructor plus disciplined getters.
 
 Everything encapsulation wanted, you get from "which names does this module export":
 
-- **A private field** → a constructor you don't export. Internals are unreachable because the only door (the constructor) is locked.
-- **A public read-only accessor** → export a function, not the field. `emailAddress` reads; there's no setter because the value is immutable, so the entire category of "accidental mutation of an object's innards" doesn't arise.
-- **A validated constructor** → a smart constructor returning `Maybe` (or `Either` with a reason). Invalid states are unrepresentable outside the module.
-- **A package-private helper** → a function the module simply doesn't export.
+- A private field becomes a constructor you don't export. Internals are unreachable because the only door (the constructor) is locked.
+- A public read-only accessor becomes an exported function, not the field. `emailAddress` reads; there's no setter because the value is immutable, so "accidental mutation of an object's innards" can't happen.
+- A validated constructor becomes a smart constructor returning `Maybe` (or `Either` with a reason). Invalid states are unrepresentable outside the module.
+- A package-private helper becomes a function the module doesn't export.
 
-The honest counterweight, and it's a fair one: Scala's per-member visibility is *finer-grained* than the module boundary. `private[this]` means "not even other instances of this class" — a distinction Haskell's module-level control can't make, because Haskell has no instances to distinguish. And `opaque type` is genuinely excellent and gives you the newtype-with-hidden-representation story right in the language. So this isn't Haskell having something Scala lacks; it's Haskell reaching the same destination — invariants enforced, internals hidden — with one concept (the export list) where Scala offers a graduated menu. For the 95% case, "don't export the constructor" is all you ever need, and it's less to hold in your head than the qualifier menu. For the last 5%, Scala's granularity occasionally does something the module can't.
+The honest counterweight, and it's a fair one: Scala's per-member visibility is *finer-grained* than the module boundary. `private[this]` means "not even other instances of this class," a distinction Haskell's module-level control can't make, because Haskell has no instances to distinguish. And `opaque type` is excellent and gives you the newtype-with-hidden-representation story right in the language. So Haskell doesn't have something Scala lacks here. It reaches the same place (invariants enforced, internals hidden) with one concept, the export list, where Scala offers a graduated menu. For the 95% case, "don't export the constructor" is all you need, and it's less to hold in your head than the qualifier menu. For the last 5%, Scala's granularity sometimes does something the module can't.
 
 ## Mutation is an effect, not a default
 
-Here's the last survivor, and the one that reframes the whole series. The notification service should count how many messages it has delivered. In Scala the reflex is a private mutable field:
+Here's the last one, and it reframes the whole series. The notification service should count how many messages it has delivered. In Scala the reflex is a private mutable field:
 
 ```scala
 class DeliveryLog:
@@ -293,9 +293,9 @@ class DeliveryLog:
   def total: Int = count
 ```
 
-Look at the signature of `total`: `Int`. It promises you an integer and says nothing about the fact that calling it observes mutable state that other threads might be changing. `record()` returns `Unit` and quietly mutates. This is the OOP default — objects *are* bundles of mutable state, and the mutation is invisible in the types. It's so normal that the Scala version above doesn't even register as doing anything unusual.
+Look at the signature of `total`: `Int`. It promises an integer and says nothing about the fact that calling it reads mutable state other threads might be changing. `record()` returns `Unit` and mutates without telling you. This is the OOP default: objects *are* bundles of mutable state, and the mutation is invisible in the types. It's so normal that the Scala version above doesn't even look unusual.
 
-Haskell will not let you hide it. There is no ambient mutable field; mutation is an effect, and effects show up in the type. An `IORef` — a mutable reference cell — is the direct translation:
+Haskell won't let you hide it. There's no ambient mutable field; mutation is an effect, and effects show up in the type. An `IORef`, a mutable reference cell, is the direct translation:
 
 ```haskell
 data DeliveryLog = DeliveryLog (IORef Int)
@@ -310,11 +310,11 @@ total :: DeliveryLog -> IO Int
 total (DeliveryLog ref) = readIORef ref
 ```
 
-Every signature tells the truth. `newLog :: IO DeliveryLog` — allocating a mutable cell is an effect. `record :: DeliveryLog -> IO ()` — recording mutates, so it's `IO`. And the one that matters most: `total :: DeliveryLog -> IO Int`, **not** `DeliveryLog -> Int`. Reading mutable state is an effect, because the answer depends on *when* you ask, and the type is forced to admit it. You cannot write a `DeliveryLog -> Int` that reads the live count — the type system won't have it. The invisible thing in the Scala version is unmissable here, and that's the entire point: you can look at a function's type and know whether it touches mutable state, every time, with no exceptions.
+Every signature tells the truth. `newLog :: IO DeliveryLog`: allocating a mutable cell is an effect. `record :: DeliveryLog -> IO ()`: recording mutates, so it's `IO`. And the one that matters most: `total :: DeliveryLog -> IO Int`, **not** `DeliveryLog -> Int`. Reading mutable state is an effect because the answer depends on *when* you ask, and the type has to admit it. You can't write a `DeliveryLog -> Int` that reads the live count; the type system won't allow it. What was invisible in the Scala version is impossible to miss here, and that's the point: a function's type tells you whether it touches mutable state, every time, with no exceptions.
 
-That's also why concurrency is so much less fraught in Haskell. The reason `Ref`/`IORef`/`STM` are the whole story is that mutation has *nowhere to hide* — it was already corralled into `IO`, already explicit, already something the type system was tracking. There's no separate "make this class thread-safe" project, because there's no ambient mutable state that was quietly unsafe to begin with.
+That's also why concurrency is so much less fraught in Haskell. `Ref`/`IORef`/`STM` are the whole story because mutation has *nowhere to hide*. It was already confined to `IO`, already explicit, already tracked by the type system. There's no separate "make this class thread-safe" project, because there was never ambient mutable state that was unsafe to begin with.
 
-And often you don't even want a mutable cell — you want the *appearance* of mutable state with none of the reality. If the counter is threaded through a computation rather than shared across threads, the `State` monad gives you `get`/`put`/`modify` that read and write like mutable variables but compile down to pure value-passing:
+Often you don't even want a mutable cell. You want something that looks like mutable state without being it. If the counter is threaded through a computation rather than shared across threads, the `State` monad gives you `get`/`put`/`modify`, which read and write like mutable variables but compile down to pure value-passing:
 
 ```haskell
 import Control.Monad.State
@@ -330,15 +330,15 @@ runBatch msgs = execState (mapM_ deliver msgs) 0
 runBatch ["a", "b", "c"]   -- => 3
 ```
 
-`modify (+ 1)` reads exactly like `count += 1`, and `runBatch` returns a plain `Int` with no `IO` in sight — because nothing was ever mutated. `State` is a pure value-threading pattern wearing mutable-variable syntax, and its type (`State Int`, not `IO`) tells you precisely that: state is involved, the outside world is not. When you *do* need genuine in-place mutation for performance in a pure algorithm, `ST` gives you that with a type that still guarantees the mutation can't escape. Three tools — `State` for pure threading, `ST` for local mutation, `IORef`/`STM` for shared mutable state — and the *type* tells the reader which one you reached for and therefore what kind of thing is going on. In the Scala class, all three of those look identical from the outside: a method returning `Int`.
+`modify (+ 1)` reads exactly like `count += 1`, and `runBatch` returns a plain `Int` with no `IO` in sight, because nothing was ever mutated. `State` is a pure value-threading pattern wearing mutable-variable syntax, and its type (`State Int`, not `IO`) tells you exactly that: state is involved, the outside world is not. When you *do* need real in-place mutation for performance in a pure algorithm, `ST` gives you that, with a type that still guarantees the mutation can't escape. So there are three tools: `State` for pure threading, `ST` for local mutation, `IORef`/`STM` for shared mutable state. The *type* tells the reader which one you picked, and therefore what's going on. In the Scala class, all three look the same from outside: a method returning `Int`.
 
-This is the deep version of the whole post's thesis. OOP's central idea is the object: state and behavior bundled together, with the state mutable by default and the mutation hidden behind methods. Haskell's bet is that this bundling is the source of a huge fraction of the complexity we spend classes managing — thread-safety, defensive copying, temporal coupling, "is it safe to call this twice." Take the mutation out of the default, force it into the types when it's genuinely needed, and most of that management work evaporates along with the machinery built to do it.
+This is the deep version of the post's thesis. OOP's central idea is the object: state and behavior bundled together, with the state mutable by default and the mutation hidden behind methods. Haskell bets that this bundling causes a huge share of the complexity we spend classes managing: thread-safety, defensive copying, temporal coupling, "is it safe to call this twice." Take mutation out of the default, force it into the types when you really need it, and most of that management work goes away, along with the machinery built to do it.
 
 ## Where this is going
 
-The thesis at the top was that most of Scala's OOP machinery answers questions Haskell never asks, and that the four real problems underneath — dispatch, reuse, modularity, encapsulation-with-mutation — have smaller answers. We've now seen each one. Inheritance split back into a sum type and a function (with the typeclass waiting when you want the open axis, and the expression problem naming the trade honestly). Stackable mixins became function composition, with the linearization written plainly in the source instead of computed by a flattening rule. Five module constructs collapsed into one `module` plus an export list. Encapsulation came from not exporting a constructor, and mutation stopped being a default and became an effect you can see in every type.
+The thesis at the top was that most of Scala's OOP machinery answers questions Haskell never asks, and that the four real problems underneath (dispatch, reuse, modularity, encapsulation-with-mutation) have smaller answers. We've now seen each one. Inheritance split back into a sum type and a function, with the typeclass there when you want the open axis and the expression problem naming the trade-off. Stackable mixins became function composition, with the linearization written in the source instead of computed by a flattening rule. Five module constructs collapsed into one `module` plus an export list. Encapsulation came from not exporting a constructor, and mutation stopped being a default and became an effect you can see in every type.
 
-The fair half held up too. Sum types make new operations cheap and new cases costly, which is the wrong trade for genuinely plugin-shaped problems — and that's exactly when you reach for the typeclass. Scala's `object`-as-value gives you runtime-swappable modules that Haskell splits into records and effects. Per-member visibility is finer-grained than the module boundary. None of those is a knockout for either side; they're the honest seams where the two designs made different, defensible calls.
+The fair half held up too. Sum types make new operations cheap and new cases costly, which is the wrong trade for plugin-shaped problems, and that's when you reach for the typeclass. Scala's `object`-as-value gives you runtime-swappable modules, which Haskell splits into records and effects. Per-member visibility is finer-grained than the module boundary. None of these is a knockout for either side. They're the places where the two designs made different, defensible calls.
 
 ---
 

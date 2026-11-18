@@ -6,16 +6,16 @@ template = "about.html"
 
 ## Hi, I'm Alexander
 
-Software engineer with 21 years of experience, primarily in Scala, Haskell, and Nix. I focus on functional programming, the architecture of high-load distributed systems, reproducible builds, and AI-first development with cutting-edge agentic and LLM tooling.
+I'm a software engineer with 21 years of experience, mostly in Scala, Haskell, and Nix. I work on functional programming, high-load distributed systems, and reproducible builds, and I do a lot of my development with AI agents and LLM tools.
 
-This blog is where I write about things I find interesting in programming and technology. For the full picture — experience, projects, and skills — see my [CV](/cv.pdf).
+I write here about programming and technology topics I find interesting. My experience, projects, and skills are in my [CV](/cv.pdf).
 
 ### Interests
 
-- **Functional Programming** — Scala, Haskell, type theory, category theory
-- **Nix Ecosystem** — NixOS, Nix flakes, reproducible builds
-- **System Design** — Distributed systems, scalability patterns
-- **AI & Developer Tools** — LLMs, AI-assisted development
+- Functional programming: Scala, Haskell, type theory, category theory
+- Nix: NixOS, flakes, reproducible builds
+- System design: distributed systems, scalability patterns
+- AI and developer tools: LLMs, AI-assisted development
 
 ### Links
 

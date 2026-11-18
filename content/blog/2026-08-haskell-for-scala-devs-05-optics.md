@@ -1,24 +1,24 @@
 +++
 title = "Haskell for Scala Developers: Part 5 — Optics and Deriving"
 date = 2026-08-17
-description = "For working Scala developers picking up Haskell: the two things you actually do every Tuesday — reach deep into an immutable record to change one field, and get a type's instances written for you. Lenses, prisms, and traversals as first-class composable values; the deriving story (stock/newtype/anyclass/DerivingVia on GHC.Generics); Template Haskell as the back door; and how all of it compares to Scala 3's Mirror-based derivation and inline/quotes macros."
+description = "For Scala developers learning Haskell: changing one field deep inside an immutable record, and getting instances written for you. Lenses, prisms and traversals; stock, newtype, anyclass and DerivingVia deriving on GHC.Generics; Template Haskell; and how it compares to Scala 3's Mirror derivation and inline/quotes macros."
 path = "blog/2026/08/haskell-for-scala-devs-05-optics"
 [taxonomies]
 tags = ["haskell", "scala", "functional-programming", "haskell-for-scala-devs"]
 categories = ["programming"]
 +++
 
-This is the least philosophical piece you could write comparing Haskell and Scala, and the one you'll reach for most often. It's about the two things you actually do every Tuesday afternoon. **Reach into a deeply nested immutable value and change one field three levels down. And get a type's boilerplate — JSON, equality, the lenses themselves — written for you instead of by hand.**
+This is the least philosophical piece you could write comparing Haskell and Scala, and probably the one you'll reach for most often. It covers the two things you actually do every Tuesday afternoon: **reach into a deeply nested immutable value and change one field three levels down, and get a type's boilerplate (JSON, equality, the lenses themselves) written for you instead of by hand.**
 
-Both languages solve both problems, and — this is the through-line — both solve them the same way underneath: by *generating code from the shape of your types*. Scala reaches for a lens library (Monocle) built on macros, and for `derives` clauses backed by `Mirror` and, when that runs out, `inline`/`quotes`. Haskell reaches for the optics ecosystem and for a deriving mechanism sitting on `GHC.Generics`, with Template Haskell as the full-power back door. Two languages, the same two destinations, arriving by different roads.
+Both languages solve both problems, and underneath they solve them the same way: by *generating code from the shape of your types*. Scala reaches for a lens library (Monocle) built on macros, and for `derives` clauses backed by `Mirror` and, when that runs out, `inline`/`quotes`. Haskell reaches for the optics ecosystem and for a deriving mechanism built on `GHC.Generics`, with Template Haskell as the full-power back door. The two languages end up in the same two places by different roads.
 
-Two threads run through it: the record-update pain that makes optics worth having, and the deriving story, where Haskell's `DerivingVia` has no Scala equivalent at all.
+The post follows two threads: the record-update pain that makes optics worth having, and the deriving story, where Haskell's `DerivingVia` has no Scala equivalent at all.
 
 <!-- more -->
 
 ## The anchor: a nested order
 
-One example the whole way down. An order, with a customer, who has an address, and a list of line items. Nesting for the optics half, a collection for the traversal half, a sum type for the prism half, and enough structure that JSON derivation has something to chew on.
+I'll use one example the whole way down: an order, with a customer, who has an address, and a list of line items. That gives us nesting for the optics half, a collection for traversals, a sum type for prisms, and enough structure that JSON derivation has something to chew on.
 
 Scala 3:
 
@@ -75,11 +75,11 @@ data Order = Order
   } deriving stock (Show, Eq, Generic)
 ```
 
-Nothing here is new — it's ordinary data modeling with one addition: every type has `Generic` in its `deriving` clause. Hold onto that word. It's the single hook that makes both halves of this post work: the optics get generated from it, and so does the JSON. It's the closest thing Haskell has to Scala 3's `Mirror`, and we'll come back to why in the second half.
+Nothing here is new. It's ordinary data modeling with one addition: every type has `Generic` in its `deriving` clause. Remember that word. It's the one hook that makes both halves of this post work, since the optics get generated from it and so does the JSON. It's the closest thing Haskell has to Scala 3's `Mirror`, and we'll come back to why in the second half.
 
 ## The record-update wall
 
-Here's the pain, stated plainly. A customer moved; update the city. In Scala the tool is `copy`, and nesting it is where it stops being pleasant:
+Here's the pain. A customer moved, so we update the city. In Scala the tool is `copy`, and nesting it is where it stops being pleasant:
 
 ```scala
 val moved = order.copy(
@@ -98,11 +98,11 @@ moved = order
           { city = "Kyiv" } } }
 ```
 
-Read that twice. To change one leaf you name the whole path twice — once to dig down (`address (customer order)`) and once to build back up (`customer = ... { address = ... }`). Three levels is annoying; five is a code-review casualty. Every immutable-data language hits this wall, and the fix everyone converges on is the same idea: make "a path into a structure" a **first-class value** you can build, name, compose, and reuse. In Scala that value is a Monocle optic. In Haskell it's a lens.
+To change one leaf you name the whole path twice: once to dig down (`address (customer order)`) and once to build back up (`customer = ... { address = ... }`). Three levels is annoying; five is a code-review casualty. Every immutable-data language hits this wall, and they all converge on the same fix: make "a path into a structure" a **first-class value** you can build, name, compose, and reuse. In Scala that value is a Monocle optic. In Haskell it's a lens.
 
 ## Lenses: a path you can pass around
 
-Strip a lens down to its essence and it's two functions glued together: a **getter** `s -> a` and a **setter** `s -> a -> s`. That's it. The whole edifice is those two functions bundled so they compose. Here's the `city` lens on `Address`, written by hand so there's no magic:
+Strip a lens down and it's two functions glued together: a **getter** `s -> a` and a **setter** `s -> a -> s`, bundled so they compose. Here's the `city` lens on `Address`, written by hand so there's no magic:
 
 ```haskell
 import Control.Lens
@@ -112,7 +112,7 @@ cityL = lens city (\addr c -> addr { city = c })
 --            ^getter  ^setter
 ```
 
-`Lens' Address Text` reads "a focus on a `Text` living inside an `Address`." Now three operators do the work, and they're the ones you'll see in every lens-using codebase:
+`Lens' Address Text` reads "a focus on a `Text` living inside an `Address`." Three operators do the work, and you'll see them in every codebase that uses lens:
 
 ```haskell
 view cityL addr          -- get:  addr ^. cityL
@@ -120,7 +120,7 @@ set  cityL "Kyiv" addr   -- set:  addr & cityL .~ "Kyiv"
 over cityL toUpper' addr -- modify: addr & cityL %~ toUpper'
 ```
 
-`^.` is get, `.~` is set, `%~` is modify-with-a-function, and `&` is just reverse application (`x & f` = `f x`) so the whole thing reads left-to-right like a pipeline. Fine — but a single-level lens buys nothing over `addr { city = ... }`. The entire point is the next line. **Lenses compose with `.`, exactly like functions**, and the composition dives through the nesting:
+`^.` is get, `.~` is set, `%~` is modify-with-a-function, and `&` is just reverse application (`x & f` = `f x`), so the whole thing reads left to right like a pipeline. A single-level lens buys nothing over `addr { city = ... }`, though. What matters is the next step: **lenses compose with `.`, exactly like functions**, and the composition dives through the nesting:
 
 ```haskell
 customerL :: Lens' Order Customer
@@ -133,11 +133,11 @@ addressL = lens address (\c a -> c { address = a })
 moved = order & customerL . addressL . cityL .~ "Kyiv"
 ```
 
-That last line is the whole section. `customerL . addressL . cityL` is a `Lens' Order Text` — a single value describing the path from an order all the way down to a city — and it's built by gluing three small lenses with the ordinary composition dot. The nested-`copy` pyramid collapses into one readable chain. And because it's a *value*, you can name it (`orderCityL = customerL . addressL . cityL`), pass it to a function, stick it in a list, and reuse it for get, set, and modify alike.
+`customerL . addressL . cityL` is a `Lens' Order Text`: a single value describing the path from an order down to a city, built by gluing three small lenses with the ordinary composition dot. The nested-`copy` pyramid collapses into one readable chain. And because it's a *value*, you can name it (`orderCityL = customerL . addressL . cityL`), pass it to a function, stick it in a list, and reuse it for get, set, and modify alike.
 
 ### You don't write those by hand
 
-The obvious objection: I just wrote three `lens` boilerplate definitions to avoid one `copy`. Nobody does that. Lenses are *generated*, and there are two roads — which is a preview of the whole second half of this post.
+The obvious objection: I just wrote three `lens` boilerplate definitions to avoid one `copy`. Nobody does that. Lenses are *generated*, and there are two ways to do it, which previews the second half of this post.
 
 The Template Haskell road generates them at compile time from underscore-prefixed fields:
 
@@ -146,7 +146,7 @@ data Address = Address { _street :: Text, _city :: Text, _country :: Text }
 makeLenses ''Address   -- generates streetL-style lenses named `street`, `city`, ...
 ```
 
-The `GHC.Generics` road generates them with no code generation at all, straight off that `Generic` instance, using the `generic-lens` library and the field's name as a type-level string:
+The `GHC.Generics` road needs no code generation at all. The `generic-lens` library builds the lenses straight from that `Generic` instance, using the field's name as a type-level string:
 
 ```haskell
 {-# LANGUAGE DataKinds, TypeApplications #-}
@@ -156,9 +156,9 @@ moved = order
   & field @"customer" . field @"address" . field @"city" .~ "Kyiv"
 ```
 
-No per-field boilerplate, no Template Haskell, no underscores — `field @"city"` conjures the lens from the type's generic structure on demand. This is the direct answer to Haskell's field-accessor namespacing problem: the field name lives at the type level as `@"city"`, so it doesn't matter that three different records all have a `city` and that Haskell's plain accessors would collide. The optic is resolved by type, not by a name in scope.
+There's no per-field boilerplate, no Template Haskell, and no underscores: `field @"city"` builds the lens from the type's generic structure on demand. This also solves Haskell's field-accessor namespacing problem. The field name lives at the type level as `@"city"`, so it doesn't matter that three different records all have a `city` and Haskell's plain accessors would collide. The optic is resolved by type, not by a name in scope.
 
-**How Scala does the same thing.** Monocle, Scala's optics library, generates the optic inline from a path lambda via a macro:
+Scala does the same thing with Monocle, its optics library, which generates the optic inline from a path lambda via a macro:
 
 ```scala
 import monocle.syntax.all.*
@@ -166,7 +166,7 @@ import monocle.syntax.all.*
 val moved = order.focus(_.customer.address.city).replace("Kyiv")
 ```
 
-`.focus(_.customer.address.city)` is a macro that reads the lambda's field path at compile time and produces exactly the composed lens `customerL . addressL . cityL` would be. Honestly? For the plain-nested-field case, `.focus(...)` is *nicer* than the Haskell operator zoo — it looks like the field access it replaces, and there's no `.~`/`%~`/`^.` vocabulary to learn. This is the fair half of the section, and it's a real point in Scala's favor: Monocle is a genuinely good library, and its Scala-3 macro syntax is more approachable than `lens`'s operators for the 80% case. Haskell's counter is ubiquity and uniformity — every library speaks the same optic vocabulary, `generic-lens` needs no macro at all, and (with the `OverloadedRecordDot` extension) plain reads like `order.customer.address.city` already work in the language, so optics are reserved for the *update* and *traversal* jobs where they actually earn their keep.
+`.focus(_.customer.address.city)` is a macro that reads the lambda's field path at compile time and produces exactly the lens that `customerL . addressL . cityL` would be. For the plain nested-field case, `.focus(...)` is *nicer* than the Haskell operator zoo: it looks like the field access it replaces, and there's no `.~`/`%~`/`^.` vocabulary to learn. That's a real point in Scala's favor. Monocle is a good library, and its Scala 3 macro syntax is more approachable than `lens`'s operators for the 80% case. Haskell's counter is ubiquity and uniformity. Every library speaks the same optic vocabulary, `generic-lens` needs no macro at all, and with the `OverloadedRecordDot` extension, plain reads like `order.customer.address.city` already work in the language. That leaves optics for the *update* and *traversal* jobs, where they earn their keep.
 
 That word "traversal" is where lenses stop being a convenience and start being the interesting library.
 
@@ -174,7 +174,7 @@ That word "traversal" is where lenses stop being a convenience and start being t
 
 A lens focuses on exactly one thing that's always there. Two siblings relax each half of that.
 
-A **prism** focuses on something that *might not be there* — a specific branch of a sum type. Our `Payment` is a sum, and `generic-lens` gives a prism per constructor named by, again, a type-level string:
+A **prism** focuses on something that *might not be there*, such as a specific branch of a sum type. Our `Payment` is a sum, and `generic-lens` gives a prism per constructor, again named by a type-level string:
 
 ```haskell
 import Data.Generics.Sum (_Ctor)
@@ -184,16 +184,16 @@ last4 :: Order -> Maybe Text
 last4 o = o ^? field @"payment" . _Ctor @"Card"
 ```
 
-`^?` is the "maybe get" operator — a prism can miss, so it returns `Maybe`. `_Ctor @"Card"` matches only when the payment is a `Card`, yielding its `Text`; on `Cash` or `Invoice` you get `Nothing`. Compose a prism onto a lens with the same `.` and you get "reach into this branch, if it's this branch." It's pattern-matching turned into a composable value.
+`^?` is the "maybe get" operator. A prism can miss, so it returns `Maybe`. `_Ctor @"Card"` matches only when the payment is a `Card`, yielding its `Text`; on `Cash` or `Invoice` you get `Nothing`. Compose a prism onto a lens with the same `.` and you get "reach into this branch, if it's this branch." It's pattern matching turned into a composable value.
 
-A **traversal** focuses on *many* things at once — every element of a collection. This is the payoff line for the whole anchor. Bump the price of every line item by 10%, in one expression:
+A **traversal** focuses on *many* things at once, like every element of a collection. This is where the anchor example pays off. Bump the price of every line item by 10%, in one expression:
 
 ```haskell
 raised :: Order -> Order
 raised o = o & field @"items" . traversed . field @"price" %~ (* 1.1)
 ```
 
-`traversed` walks the list; composed with `field @"price"` it focuses the `price` of *every* item; `%~ (* 1.1)` modifies all of them. No `map`, no rebuilding the `Order`, no naming the list twice. And you can filter mid-path — discount only the expensive items:
+`traversed` walks the list. Composed with `field @"price"`, it focuses the `price` of *every* item, and `%~ (* 1.1)` modifies all of them. No `map`, no rebuilding the `Order`, no naming the list twice. You can also filter mid-path, for example to discount only the expensive items:
 
 ```haskell
 discounted :: Order -> Order
@@ -204,19 +204,19 @@ discounted o = o
 
 `filtered` keeps the traversal aimed only at items whose price is over 100, and the `%~` at the end multiplies just those. Read the path left to right and it's an English sentence: *in the items, for each one, where the price is over 100, multiply the price by 0.9.*
 
-This is the sense in which optics are one of the more interesting libraries in the language. Lens, prism, and traversal are the same idea — a first-class, composable focus — at three different cardinalities (exactly one, zero-or-one, zero-or-many), and they all compose with the same dot. A `Lens . Traversal` is a `Traversal`; a `Lens . Prism` is a `Traversal`; the types work out so you can build a focus that dives through a record, into a list, filtered, and into a branch, as one value.
+This is why I think optics are one of the more interesting libraries in the language. Lens, prism, and traversal are the same idea (a first-class, composable focus) at three different cardinalities: exactly one, zero-or-one, and zero-or-many. They all compose with the same dot. A `Lens . Traversal` is a `Traversal`, and a `Lens . Prism` is a `Traversal`. The types work out so you can build a focus that dives through a record, into a list, filtered, and into a branch, as one value.
 
-**The fair half.** Monocle has all three too — `Lens`, `Prism`, `Traversal`, `Optional`, the whole hierarchy — and its `.focus` macro extends to `.each`, `.filterIndex`, and prism-style `.as[Case]` selectors. So this is not a capability Haskell has and Scala lacks; both ecosystems are complete. The difference is the one that runs through the entire series: in Haskell this vocabulary is *the* way you touch nested data, assumed by every library, whereas in Scala it's an excellent add-on library you opt into on top of `copy`, pattern matching, and `map`. Same tools; different center of gravity.
+In fairness, Monocle has all three too (`Lens`, `Prism`, `Traversal`, `Optional`, the whole hierarchy), and its `.focus` macro extends to `.each`, `.filterIndex`, and prism-style `.as[Case]` selectors. Both ecosystems are complete, so this isn't a capability Haskell has and Scala lacks. The difference is the one that runs through the entire series: in Haskell this vocabulary is *the* way you touch nested data, and every library assumes it. In Scala it's an excellent add-on library you opt into on top of `copy`, pattern matching, and `map`. Same tools, different center of gravity.
 
-There's a real cost to be honest about, though, and it's the flip side of that ubiquity: `lens` is famous for the wall of operators (`^.`, `.~`, `%~`, `^?`, `^..`, `.=`, `<>~`, and dozens more) and for type errors that mention `Applicative f =>` machinery you didn't write. The modern `optics` library trades the operators for named functions (`view`, `set`, `over`, `%`) and much friendlier errors — it's what I'd start a new codebase on today. But `lens` is what most of the ecosystem is written in, so its operators are the ones you have to be able to read.
+That ubiquity has a real cost, though. `lens` is famous for its wall of operators (`^.`, `.~`, `%~`, `^?`, `^..`, `.=`, `<>~`, and dozens more) and for type errors that mention `Applicative f =>` machinery you didn't write. The newer `optics` library trades the operators for named functions (`view`, `set`, `over`, `%`) and much friendlier errors, and it's what I'd start a new codebase on today. But most of the ecosystem is written with `lens`, so you have to be able to read its operators.
 
 ## The engine underneath: GHC.Generics
 
-Now the second half, and the reason I made every anchor type `deriving stock (… Generic)`. Where does `field @"city"` get its getter and setter without you writing them? The same place a generic JSON encoder gets its field names, and the same place `stock` deriving gets `Show` and `Eq`: `GHC.Generics` turns any type into a uniform, walkable description of its own structure.
+Now the second half, and the reason I made every anchor type `deriving stock (… Generic)`. Where does `field @"city"` get its getter and setter without you writing them? From the same place a generic JSON encoder gets its field names, and the same place `stock` deriving gets `Show` and `Eq`: `GHC.Generics` turns any type into a uniform, walkable description of its own structure.
 
-`deriving Generic` gives your type an associated `Rep` — a representation of it as a sum of products, with the constructor and field names carried along at the type level. Library code never sees `Order`; it sees "a product of four fields named `orderId`, `customer`, `items`, `payment`," and writes one generic algorithm over *that* shape that then works for every type. `field @"city"` is a generic function that walks the `Rep` to find the field named `city`. Aeson's generic encoder walks the same `Rep` to emit a JSON object with a key per field. One structural description; many consumers.
+`deriving Generic` gives your type an associated `Rep`, a representation of it as a sum of products, with the constructor and field names carried along at the type level. Library code never sees `Order`. It sees "a product of four fields named `orderId`, `customer`, `items`, `payment`," and writes one generic algorithm over *that* shape, which then works for every type. `field @"city"` is a generic function that walks the `Rep` to find the field named `city`. Aeson's generic encoder walks the same `Rep` to emit a JSON object with a key per field. One structural description serves many consumers.
 
-The everyday face of it is JSON, and it's a two-word `deriving` clause. Aeson (the `aeson` library) provides *default* `ToJSON`/`FromJSON` methods defined in terms of `Generic`, so you can pull them in with the `anyclass` strategy:
+The everyday use is JSON, and it takes a two-word `deriving` clause. Aeson (the `aeson` library) provides *default* `ToJSON`/`FromJSON` methods defined in terms of `Generic`, so you can pull them in with the `anyclass` strategy:
 
 ```haskell
 {-# LANGUAGE DerivingStrategies, DeriveAnyClass #-}
@@ -236,20 +236,20 @@ encode (Address "1 Main St" "Kyiv" "UA")
 -- {"city":"Kyiv","country":"UA","street":"1 Main St"}
 ```
 
-That's the whole thing. No codec to write, no field list to keep in sync with the record, no import beyond the class names — the encoder reads the fields off `Generic`. This is where `DerivingStrategies` earns its place: each `deriving` clause says *how* it's deriving, so there's no ambiguity between "the compiler writes this structurally" (`stock`) and "borrow the class's Generic-based default" (`anyclass`).
+That's all. There's no codec to write, no field list to keep in sync with the record, and no import beyond the class names, because the encoder reads the fields off `Generic`. This is where `DerivingStrategies` earns its place: each `deriving` clause says *how* it derives, so there's no ambiguity between "the compiler writes this structurally" (`stock`) and "borrow the class's Generic-based default" (`anyclass`).
 
 ## Four strategies, and the one with no Scala equivalent
 
-The four deriving strategies line up as a set, because each answers a different "where does this instance come from" question:
+The four deriving strategies form a set, because each one answers a different "where does this instance come from" question:
 
-- **`stock`** — the compiler synthesizes it from the type's structure. `Show`, `Eq`, `Ord`, `Functor`, `Foldable`, `Traversable`, `Generic` itself. Built into GHC.
-- **`newtype`** — the wrapper borrows its underlying type's instance, at zero runtime cost. A `newtype UserId = UserId Text` gets `Text`'s `Ord` for free.
-- **`anyclass`** — use the class's *own* default methods. This is the JSON case above: Aeson's defaults are written over `Generic`, so `anyclass` gets you a working codec with no bespoke code.
-- **`via`** — `DerivingVia`: borrow the instance from a *stand-in* newtype that already has the one you want.
+- **`stock`**: the compiler synthesizes it from the type's structure. `Show`, `Eq`, `Ord`, `Functor`, `Foldable`, `Traversable`, `Generic` itself. Built into GHC.
+- **`newtype`**: the wrapper borrows its underlying type's instance, at zero runtime cost. A `newtype UserId = UserId Text` gets `Text`'s `Ord` for free.
+- **`anyclass`**: use the class's *own* default methods. This is the JSON case above. Aeson's defaults are written over `Generic`, so `anyclass` gets you a working codec with no bespoke code.
+- **`via`** (`DerivingVia`): borrow the instance from a *stand-in* newtype that already has the one you want.
 
-The first three have rough Scala analogues (`stock` ≈ the compiler's `case class` freebies, `newtype` ≈ inheriting an `opaque type`'s given, `anyclass` ≈ a `Mirror`-based `derives`). `DerivingVia` is the one that doesn't, and it's worth seeing why it's more than a fourth flavor. It lets you package *a whole derivation policy* as a reusable type and stamp it onto anything.
+The first three have rough Scala analogues (`stock` ≈ the compiler's `case class` freebies, `newtype` ≈ inheriting an `opaque type`'s given, `anyclass` ≈ a `Mirror`-based `derives`). `DerivingVia` doesn't, and it's more than a fourth flavor: it lets you package *a whole derivation policy* as a reusable type and stamp it onto anything.
 
-A tiny, self-contained example — combine a `newtype` by addition instead of by its underlying type's default:
+Here's a tiny, self-contained example that makes a `newtype` combine by addition instead of by its underlying type's default:
 
 ```haskell
 {-# LANGUAGE DerivingVia #-}
@@ -264,7 +264,7 @@ newtype Meters = Meters Double
 Meters 3 <> Meters 4   -- Meters 7.0   (added, because Sum says so)
 ```
 
-Now the version that shows why "no Scala equivalent" matters. Say your whole API wants `snake_case` JSON keys. Instead of configuring an encoder at every type, you name the policy once as a stand-in and derive *through* it (this uses the `deriving-aeson` package, which exists precisely to make Aeson options `DerivingVia`-able):
+Now the version that shows why "no Scala equivalent" matters. Say your whole API wants `snake_case` JSON keys. Instead of configuring an encoder for every type, you name the policy once as a stand-in and derive *through* it. This uses the `deriving-aeson` package, which exists precisely to make Aeson options `DerivingVia`-able:
 
 ```haskell
 {-# LANGUAGE DerivingVia, DataKinds #-}
@@ -284,15 +284,15 @@ data Customer = Customer
 -- encode a Customer => {"first_name":...,"last_name":...,"home_city":...}
 ```
 
-`CustomJSON '[FieldLabelModifier CamelToSnake]` *is* the policy — camelCase fields become snake_case keys — expressed as a type. Any record can adopt it with one `via` line, and you can define your own `type ApiJSON = CustomJSON '[...]` alias so the whole codebase derives `... via ApiJSON`. The strategy became a first-class, named, reusable thing. That's the sense in which the comparison "gets more one-sided": Scala 3 can *configure* a derivation (pass options to a `derives`), but it has no built-in way to name a configuration as a type and stamp it across dozens of unrelated records with a single clause. You reach for a shared macro or a base trait instead.
+`CustomJSON '[FieldLabelModifier CamelToSnake]` *is* the policy (camelCase fields become snake_case keys), expressed as a type. Any record can adopt it with one `via` line, and you can define your own `type ApiJSON = CustomJSON '[...]` alias so the whole codebase derives `... via ApiJSON`. The strategy is now a named, reusable thing. That's what I mean when I say the comparison "gets more one-sided": Scala 3 can *configure* a derivation (pass options to a `derives`), but it has no built-in way to name a configuration as a type and stamp it across dozens of unrelated records with a single clause. You reach for a shared macro or a base trait instead.
 
-## Two roads to generated code — and Scala's
+## Two roads to generated code, and Scala's
 
-Step back and there are two ways to generate code from a type, and Haskell has both — which is the honest frame for comparing to Scala.
+There are two ways to generate code from a type, and Haskell has both. That's the fairest frame for comparing it to Scala.
 
-**`GHC.Generics` is the type-directed road.** No code is generated as text; a generic function is an ordinary (if intricate) polymorphic function over the `Rep`. It's what everything above rides on. The cost is compile time and occasionally opaque errors when a `Rep` doesn't line up, and it can only see structure the `Rep` exposes.
+**`GHC.Generics` is the type-directed road.** No code is generated as text; a generic function is an ordinary (if complicated) polymorphic function over the `Rep`. Everything above rides on it. The costs are compile time and the occasional opaque error when a `Rep` doesn't line up, and it can only see structure the `Rep` exposes.
 
-**Template Haskell is the back door** — actual metaprogramming, where a function runs at compile time and *splices in* new declarations as syntax:
+**Template Haskell is the back door**: actual metaprogramming, where a function runs at compile time and *splices in* new declarations as syntax:
 
 ```haskell
 {-# LANGUAGE TemplateHaskell #-}
@@ -303,9 +303,9 @@ deriveJSON defaultOptions ''LineItem   -- generates the ToJSON/FromJSON code
 makeLenses ''LineItem                  -- generates lenses `sku`, `qty`, `price`
 ```
 
-`deriveJSON ''LineItem` runs at compile time and writes the instance source for you; `makeLenses` writes the lens definitions (that's why the fields are underscore-prefixed — `makeLenses` strips the `_` and names the lens after what's left, which is also why the earlier hand-written examples used plain field names but this one doesn't). This is strictly more powerful than `GHC.Generics` — it can generate anything you could type — but it's heavier (a compile-time staging restriction means spliced types must be defined *above* the splice), slower, and the generated code is invisible. The Haskell community's taste is to prefer `Generic` and reach for TH only when generics can't express the thing — which is exactly the trade Scala developers will find familiar, because it's the `Mirror`-versus-macro trade in the other language.
+`deriveJSON ''LineItem` runs at compile time and writes the instance source for you, and `makeLenses` writes the lens definitions. That's why the fields are underscore-prefixed: `makeLenses` strips the `_` and names the lens after what's left, which is also why the earlier hand-written examples used plain field names but this one doesn't. TH is strictly more powerful than `GHC.Generics`, since it can generate anything you could type. But it's heavier (a compile-time staging restriction means spliced types must be defined *above* the splice), slower, and the generated code is invisible. The Haskell community prefers `Generic` and reaches for TH only when generics can't express the thing. Scala developers will recognize that trade, because it's the `Mirror`-versus-macro trade in the other language.
 
-**Scala's road is macros, with `Mirror` as the sanctioned front porch.** Scala 3's everyday derivation uses `derives` backed by a `Mirror` — the compiler-provided description of a `case class`/`enum` that is, essentially, Scala's `GHC.Generics`:
+**Scala's road is macros, with `Mirror` as the sanctioned front porch.** Scala 3's everyday derivation uses `derives` backed by a `Mirror`, the compiler-provided description of a `case class`/`enum` that is basically Scala's `GHC.Generics`:
 
 ```scala
 import scala.deriving.Mirror
@@ -325,15 +325,15 @@ case class Address(street: String, city: String, country: String) derives Labell
 // summon[Labelled[Address]].labels  ==  List("street", "city", "country")
 ```
 
-A `Mirror.ProductOf[Address]` carries the field names and types at the type level — that's the `MirroredElemLabels` the `derived` method reads — and `derived` folds over them with `inline` + `scala.compiletime` operations. That fold is the direct counterpart to a generic function walking a `Rep`; a real JSON library's `derived` is this same shape with more cases. When `Mirror` isn't enough, Scala drops to full macros: `inline def` plus `quotes`/`splices` (`'{ ... }` and `${ ... }`), which run arbitrary code at compile time and construct typed AST — Scala's Template Haskell.
+A `Mirror.ProductOf[Address]` carries the field names and types at the type level (that's the `MirroredElemLabels` the `derived` method reads), and `derived` folds over them with `inline` and `scala.compiletime` operations. That fold is the direct counterpart to a generic function walking a `Rep`; a real JSON library's `derived` has the same shape with more cases. When `Mirror` isn't enough, Scala drops to full macros: `inline def` plus `quotes`/`splices` (`'{ ... }` and `${ ... }`), which run arbitrary code at compile time and construct a typed AST. That's Scala's Template Haskell.
 
-Here's the honest scorecard, because this section is the fair half of the whole post. On *raw power*, Scala 3 macros and Template Haskell are a draw, and if anything Scala's edge out: `quotes`/`splices` are a more principled, better-typed metaprogramming system than TH's stringly-influenced `Q` monad, and `inline` gives you Turing-complete compile-time computation that `GHC.Generics` alone can't match. Where Haskell pulls ahead is not power but *the shape of the common case*. The everyday jobs — "give me JSON," "give me lenses," "combine via addition," "encode with snake_case keys" — are one `deriving` line each, backed by a `stock`/`anyclass`/`via` strategy that's part of the language grammar, not a library's macro you import. Scala reaches the same place, but through a `derives` keyword whose meaning is supplied entirely by each library's derivation code, and through `Mirror` folds that every library re-implements. Haskell standardized the plumbing; Scala standardized the socket and lets libraries bring the plumbing. On a Tuesday, the standardized plumbing is less to think about — which is the whole claim.
+So here's the scorecard, and this is the section where Scala does best. On *raw power*, Scala 3 macros and Template Haskell are a draw, and if anything Scala's come out ahead: `quotes`/`splices` are a more principled, better-typed metaprogramming system than TH's stringly-influenced `Q` monad, and `inline` gives you Turing-complete compile-time computation that `GHC.Generics` alone can't match. Haskell pulls ahead on *the shape of the common case*. The everyday jobs ("give me JSON," "give me lenses," "combine via addition," "encode with snake_case keys") are one `deriving` line each, backed by a `stock`/`anyclass`/`via` strategy that's part of the language grammar rather than a library macro you import. Scala gets to the same place, but through a `derives` keyword whose meaning comes entirely from each library's derivation code, and through `Mirror` folds that every library re-implements. Haskell standardized the plumbing; Scala standardized the socket and lets libraries bring the plumbing. On a Tuesday, standardized plumbing is less to think about, and that's the whole claim.
 
 ## Where this is going
 
-The thesis was that both languages generate code from the shape of your types, to do the two things you do constantly: reach into nested immutable data, and stop writing boilerplate. We saw the record-update wall, and lenses knocking it down — getter-plus-setter fused into a composable value, then prisms for maybe-there branches and traversals for many-at-once, all composing with a single dot, all generated off `Generic` or Template Haskell rather than written by hand. Then the deriving story: `GHC.Generics` as the engine, four strategies where Scala has roughly three, `DerivingVia` as the one that packages a derivation policy into a reusable type with no Scala counterpart, and Template Haskell as the full-power back door.
+The thesis was that both languages generate code from the shape of your types to do two things you do constantly: reach into nested immutable data, and stop writing boilerplate. We saw the record-update wall and lenses knocking it down: a getter and setter fused into a composable value, then prisms for maybe-there branches and traversals for many-at-once, all composing with a single dot and all generated from `Generic` or Template Haskell instead of written by hand. Then the deriving story: `GHC.Generics` as the engine, four strategies where Scala has roughly three, `DerivingVia` packaging a derivation policy into a reusable type with no Scala counterpart, and Template Haskell as the full-power back door.
 
-And the fair half held up. Monocle's `.focus` macro is a nicer surface than `lens`'s operators for the common case; `lens` itself is genuinely intimidating and `optics` is the friendlier modern choice. Scala 3's `quotes`/`splices` are a more principled metaprogramming system than Template Haskell, and `inline` is strictly more powerful than `GHC.Generics`. Haskell's win here isn't capability — both ecosystems are complete — it's that the common case is a keyword instead of a library's macro.
+Scala's side held up too. Monocle's `.focus` macro is a nicer surface than `lens`'s operators for the common case, `lens` itself really is intimidating, and `optics` is the friendlier modern choice. Scala 3's `quotes`/`splices` are a more principled metaprogramming system than Template Haskell, and `inline` is strictly more powerful than `GHC.Generics`. Both ecosystems are complete, so Haskell doesn't win on capability. It wins because the common case is a keyword instead of a library's macro.
 
 ---
 

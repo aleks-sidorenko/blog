@@ -1,20 +1,20 @@
 +++
 title = "Getting Started with Haskell"
 date = 2026-02-26
-description = "A practical introduction to Haskell covering basic syntax, type signatures, pattern matching, and higher-order functions."
+description = "A practical introduction to Haskell: basic syntax, type signatures, pattern matching, and higher-order functions."
 path = "blog/2026/02/getting-started-with-haskell"
 [taxonomies]
 tags = ["haskell", "functional-programming", "tutorial"]
 categories = ["programming"]
 +++
 
-Haskell is a purely functional programming language known for its strong static type system, lazy evaluation, and mathematical elegance. In this post, we will walk through the basics that make Haskell a great choice for building reliable software.
+Haskell is a purely functional programming language known for its strong static type system, lazy evaluation, and mathematical elegance. This post walks through the basics that make it a great choice for building reliable software.
 
 <!-- more -->
 
-## Basic Syntax and Types
+## Basic syntax and types
 
-Every value in Haskell has a type. The compiler infers types automatically, but explicit type signatures are considered good practice:
+Every value in Haskell has a type. The compiler infers types on its own, but writing explicit type signatures is considered good practice:
 
 ```haskell
 -- Type signature followed by definition
@@ -42,9 +42,9 @@ add :: Int -> Int -> Int
 add x y = x + y
 ```
 
-Notice that multi-argument functions use currying — `add` takes one `Int` and returns a function that takes another `Int`.
+Multi-argument functions use currying: `add` takes one `Int` and returns a function that takes another `Int`.
 
-## Pattern Matching
+## Pattern matching
 
 Pattern matching lets you pull data apart and handle different cases cleanly:
 
@@ -71,7 +71,7 @@ length' []     = 0
 length' (_:xs) = 1 + length' xs
 ```
 
-## Higher-Order Functions
+## Higher-order functions
 
 Functions that take or return other functions are central to Haskell:
 
@@ -97,7 +97,7 @@ process :: [Int] -> Int
 process = sum' . map (* 2) . filter even
 ```
 
-## Algebraic Data Types
+## Algebraic data types
 
 Haskell's type system is at its best with algebraic data types (ADTs):
 
@@ -114,9 +114,9 @@ area (Triangle a b c)  = let s = (a + b + c) / 2
                           in sqrt (s * (s-a) * (s-b) * (s-c))
 ```
 
-## A Practical Example: Word Frequency Counter
+## A practical example: word frequency counter
 
-Let us put these ideas together into something useful — counting word frequencies in a text:
+Here are those ideas put together into something useful, a program that counts word frequencies in a text:
 
 ```haskell
 import Data.Char (toLower)
@@ -160,6 +160,6 @@ the: 1
 
 ## What's Next
 
-This covers the basics, but Haskell has much more to offer: type classes, monads, concurrent programming, and a rich ecosystem of libraries. In future posts, we will explore these topics in depth.
+That covers the basics. Haskell also has type classes, monads, concurrent programming, and a large ecosystem of libraries, and I'll go into those in more depth in future posts.
 
-If you want to follow along, install GHC through [GHCup](https://www.haskell.org/ghcup/) or — if you are a Nix user — simply run `nix-shell -p ghc`.
+If you want to follow along, install GHC through [GHCup](https://www.haskell.org/ghcup/), or if you use Nix, run `nix-shell -p ghc`.
