@@ -1,26 +1,26 @@
 +++
 title = "Haskell for Scala Developers: Part 1 — Functions and Data"
 date = 2026-05-05
-description = "For working Scala developers picking up Haskell: functions, data, pattern matching, options, and newtypes — the parts you already write, and what falls away when you don't have to share a language with the JVM."
+description = "For working Scala developers picking up Haskell: functions, data, pattern matching, options, and newtypes, and what falls away once the language doesn't have to share the JVM."
 path = "blog/2026/05/haskell-for-scala-devs-01-basics"
 [taxonomies]
 tags = ["haskell", "scala", "functional-programming", "haskell-for-scala-devs"]
 categories = ["programming"]
 +++
 
-There's a popular way to write this kind of post — a feature-by-feature comparison table, with checkmarks and a sentence per row. I'm not going to do that. What I want to do instead is take the parts of Scala that you already write idiomatically — case classes, sealed traits, `Option`, `Either`, the occasional `extends AnyVal` for a typed id — and show you what happens when the language stops apologizing for them.
+The usual way to write this kind of post is a feature-by-feature comparison table, with checkmarks and a sentence per row. I'm skipping that. Instead I'll take the parts of Scala you already write idiomatically (case classes, sealed traits, `Option`, `Either`, the occasional `extends AnyVal` for a typed id) and show what happens when the language stops apologizing for them.
 
-That's the main thread here. Most of what made me love Scala is _exactly_ what Haskell gives you, minus the JVM cost, minus the OOP escape hatches, and minus the long-running argument inside the Scala community about what good Scala even looks like. If you want the longer version of why I'm writing this at all, it's in [The Rise and Fall of Scala](@/blog/2026-01-the-rise-and-fall-of-scala.md).
+Most of what made me love Scala is _exactly_ what Haskell gives you, minus the JVM cost, the OOP escape hatches, and the long-running argument inside the Scala community about what good Scala even looks like. If you want the longer version of why I'm writing this at all, it's in [The Rise and Fall of Scala](@/blog/2026-01-the-rise-and-fall-of-scala.md).
 
-This one is the easy one. Functions, data, pattern matching, options, newtypes — all the things you already type twenty times a week. The translation is mostly mechanical. The interesting part is the small set of frictions that disappear when the language stops compromising on them.
+This part is the easy one: functions, data, pattern matching, options, and newtypes, all things you already type twenty times a week. The translation is mostly mechanical. What's interesting is the handful of frictions that disappear when the language stops compromising on them.
 
 <!-- more -->
 
-If you've never written a line of Haskell at all, [Getting Started with Haskell](@/blog/2026-02-getting-started-with-haskell.md) is a friendlier starting point than this post — read that first, then come back.
+If you've never written a line of Haskell at all, [Getting Started with Haskell](@/blog/2026-02-getting-started-with-haskell.md) is a friendlier starting point than this post. Read that first, then come back.
 
 ## The anchor: a tiny payment model
 
-Most of the post is built on one example, so let's introduce it early. A payment with an id, an amount, a currency, and a status — pending, settled, or failed with a reason. Two operations: settle it, and apply a percentage discount.
+Most of the post is built on one example, so I'll introduce it early: a payment with an id, an amount, a currency, and a status (pending, settled, or failed with a reason). It has two operations: settle it, and apply a percentage discount.
 
 Here it is in Scala 3:
 
@@ -79,17 +79,17 @@ applyDiscount p percent =
   p { amount = amount p * (1 - percent / 100) }
 ```
 
-(I've used `Double` for the amount to keep the snippet small. Real money wants a fixed-precision type — `Data.Fixed` or one of the `Decimal` packages — but that's not a Scala-versus-Haskell story, just a "don't represent money as a float" story.)
+(I've used `Double` for the amount to keep the snippet small. Real money wants a fixed-precision type (`Data.Fixed` or one of the `Decimal` packages), but that's not a Scala-versus-Haskell story, just a "don't represent money as a float" story.)
 
 Three observations before we move on.
 
 First, the shapes line up. Scala's `enum` becomes Haskell's `data`. `case class` becomes a `data` declaration with named fields. The methods become plain top-level functions, because that's where they were going to end up after you stopped anyone from putting them inside the class.
 
-Second, Haskell is the lighter syntax. No `case` keyword for branches. No parens around constructor patterns. No `copy(field = ...)`; the same idea is written `p { field = ... }`. The `deriving` line gives you `Show` and `Eq` for free, the same way `case class` does in Scala — you just have to ask for it explicitly, which makes it easier to reason about what you're getting.
+Second, Haskell's syntax is lighter. No `case` keyword for branches. No parens around constructor patterns. No `copy(field = ...)`; the same idea is written `p { field = ... }`. The `deriving` line gives you `Show` and `Eq` for free, the same way `case class` does in Scala. You just have to ask for them explicitly, which makes it easier to see what you're getting.
 
-Third — and this is the one worth pausing on — _neither version uses inheritance, mutable state, or null_. The Scala you'd actually write for this domain is already 90% Haskell. You just don't see it because the other 10% gives you vocabulary that Haskell never needed to invent.
+Third, and most important: _neither version uses inheritance, mutable state, or null_. The Scala you'd actually write for this domain is already 90% Haskell. You don't see it because the other 10% gives you vocabulary that Haskell never needed to invent.
 
-We'll keep coming back to this `Payment` type. Everything below is either a smaller example to illustrate a specific point or a piece of the model with one extra thing happening to it.
+We'll keep coming back to this `Payment` type. Everything below is either a smaller example for a specific point or a piece of this model with one extra thing added.
 
 ## Functions: currying, partial application, composition
 
@@ -107,18 +107,18 @@ add :: Int -> Int -> Int
 add a b = a + b
 ```
 
-That's the only form. There is no method-versus-value tension because there are no methods. A function is a value, full stop, and the type signature lives on its own line above the implementation by convention.
+That's the only form. There are no methods, so there's no method-versus-value tension. A function is a value, and by convention the type signature sits on its own line above the implementation.
 
-Now, the type. Scala's `(Int, Int) => Int` is Haskell's `Int -> Int -> Int`. They are not the same shape. Scala's reads as "a function of two `Int`s returning an `Int`." Haskell's reads as "a function of one `Int` returning a function from `Int` to `Int`." Haskell's type _is_ curried by default. Every function of more than one argument is, mechanically, a chain of single-argument functions. There's nothing to turn on.
+Now the type. Scala's `(Int, Int) => Int` is Haskell's `Int -> Int -> Int`, but they are not the same shape. Scala's reads as "a function of two `Int`s returning an `Int`." Haskell's reads as "a function of one `Int` returning a function from `Int` to `Int`." Haskell's type _is_ curried by default: every function of more than one argument is, mechanically, a chain of single-argument functions. There's nothing to turn on.
 
-This sounds like a small thing. It's not. It means partial application is the default. In Scala, you do something like:
+That sounds small, but it means partial application is the default. In Scala, you do something like:
 
 ```scala
 val plusTen: Int => Int = add(10, _)
 val addOne  = addV.curried(1)   // .curried gives you the chain version
 ```
 
-You can do it. You have two slightly different mechanisms for it (the underscore form and `.curried`). And whether they're available and how they read depends on whether you started from `def` or `val`.
+It works, but you have two slightly different mechanisms (the underscore form and `.curried`), and which one is available and how it reads depends on whether you started from `def` or `val`.
 
 In Haskell:
 
@@ -155,7 +155,7 @@ doubleThenSquareLR = double >>> square  -- left-to-right, pipeline style
 
 There is no eta-expansion step. Functions compose with each other directly because they all have the same shape: one argument in, one thing out.
 
-Two more bits of the function toolkit are worth knowing because you'll hit them in the first hour of reading any real Haskell codebase. The first is _operator sections_ — partially-applying an operator by leaving one side blank:
+Two more parts of the toolkit show up in the first hour of reading any real Haskell codebase. The first is _operator sections_: partially applying an operator by leaving one side blank:
 
 ```haskell
 addOne     = (+ 1)        -- :: Int -> Int
@@ -164,7 +164,7 @@ isPositive = (> 0)        -- :: Int -> Bool
 firstFive  = take 5       -- partial application, normal function
 ```
 
-Scala has no direct equivalent — you'd write a lambda `_ + 1`. The Haskell version is shorter and reads as "the function from x to x + 1," which is closer to how mathematicians wrote it long before any of us showed up. The second tool is `flip`, which swaps the order of a function's first two arguments:
+Scala has no direct equivalent; you'd write a lambda `_ + 1`. The Haskell version is shorter and reads as "the function from x to x + 1," which is closer to how mathematicians wrote it long before any of us showed up. The second is `flip`, which swaps the order of a function's first two arguments:
 
 ```haskell
 applyDiscount :: Payment -> Double -> Payment
@@ -173,7 +173,7 @@ process :: Payment -> Payment
 process = settle . flip applyDiscount 10
 ```
 
-`flip` exists precisely because argument order matters for composition. When you can't change the function's signature, you can change the way you call it. Scala has nothing like this in the standard library — you'd write a lambda — but the need also rarely comes up, because `andThen`/`compose` are method chains rather than dataflow primitives.
+`flip` exists because argument order matters for composition. When you can't change a function's signature, you can change how you call it. Scala's standard library has nothing like it (you'd write a lambda), but the need rarely comes up there, because `andThen`/`compose` are method chains rather than dataflow primitives.
 
 Once you absorb that every function is curried and composition is a tiny operator, a lot of Scala patterns flatten out. The `applyDiscount(_, 10) andThen settle` pipeline you might write at the top of a method becomes, in Haskell:
 
@@ -182,16 +182,16 @@ process :: Payment -> Payment
 process = settle . applyDiscount 10  -- wait, argument order
 ```
 
-Actually this reveals a real ergonomic difference. `applyDiscount` in our anchor takes the payment first and the percent second — convenient for `p.copy`-style code. In Haskell, you tend to put "the thing being transformed" _last_, so functions compose neatly. That's a tiny but constant style adjustment: argument order in Haskell is decided more by composition than by readability of a single call site. If we redefined:
+This shows a real ergonomic difference. `applyDiscount` in our anchor takes the payment first and the percent second, which is convenient for `p.copy`-style code. In Haskell you tend to put "the thing being transformed" _last_ so functions compose neatly. It's a small but constant style adjustment: in Haskell, composition decides argument order more than the readability of a single call site does. If we redefine it:
 
 ```haskell
 applyDiscount :: Double -> Payment -> Payment
 applyDiscount percent p = p { amount = amount p * (1 - percent / 100) }
 ```
 
-then `settle . applyDiscount 10` reads correctly, and you can just keep stacking transformations. Scala can do this — it's just not where the language nudges you.
+then `settle . applyDiscount 10` reads correctly, and you can keep stacking transformations. Scala can do this too; the language just doesn't nudge you there.
 
-The takeaway is small but real. Currying, partial application, and composition aren't features in Haskell. They're the shape of the language. In Scala they are features that mostly work. The gap between "mostly works" and "is the default" sounds like a footnote and ends up being one of the bigger ergonomic surprises.
+In Haskell, currying, partial application, and composition aren't features. They're the shape of the language. In Scala they are features that mostly work. The gap between "mostly works" and "is the default" sounds like a footnote, but it ends up being one of the bigger ergonomic surprises.
 
 ### A side note on bindings
 
@@ -213,13 +213,13 @@ total payments =
   in sum amounts
 ```
 
-Both are common. `where` reads top-down at the use site (you state the result, then explain its parts); `let` reads bottom-up (you build pieces, then combine them). Working Haskell freely mixes them. This is one of those small style choices that takes a few weeks of reading to feel natural and then becomes invisible. The Scala equivalent is basically `def` with a `private def` helper next to it, or a `val` bound at the top of the method body — the moves are the same, only the syntax is different.
+Both are common. `where` reads top-down at the use site (you state the result, then explain its parts); `let` reads bottom-up (you build pieces, then combine them). Real Haskell code mixes them freely. It's a small style choice that takes a few weeks of reading to feel natural and then becomes invisible. The Scala equivalent is a `def` with a `private def` helper next to it, or a `val` bound at the top of the method body. The moves are the same; only the syntax differs.
 
 ## Data: case classes, sealed traits, ADTs
 
-If there's a Scala feature where the comparison is most flattering to Scala, it's data modeling. Case classes and sealed traits are excellent. They're also, mechanically, what every modern functional language calls _algebraic data types_ — products and sums. Scala's case classes are the products. Sealed traits and Scala 3 enums are the sums.
+Data modeling is where the comparison is most flattering to Scala. Case classes and sealed traits are excellent. Mechanically, they're what every modern functional language calls _algebraic data types_: products and sums. Case classes are the products; sealed traits and Scala 3 enums are the sums.
 
-Here's a small product in Scala — a record:
+Here's a small product in Scala, a record:
 
 ```scala
 case class User(id: String, name: String, age: Int)
@@ -235,11 +235,11 @@ data User = User
   } deriving (Show, Eq)
 ```
 
-A few small differences worth understanding before we go further.
+A few small differences are worth understanding first.
 
-**Field accessors are top-level functions.** When you declare `User { userId :: String, name :: String, age :: Int }`, Haskell creates three top-level functions: `userId :: User -> String`, `name :: User -> String`, `age :: User -> Int`. They live in the module's namespace. Try to declare another type with a `name` field in the same module and you'll get a duplicate-binding error. Scala developers find this jarring at first — your case class fields are _not_ methods you call dot-style; they're plain functions you apply to a value. The community has built three responses: prefix conventions (`userId`, `userName`, `userAge` — very common in real codebases), the `DuplicateRecordFields` extension (allows the conflict but requires disambiguation at use sites), and the more recent `OverloadedRecordDot` extension (lets you write `user.name` after all). The pain here has produced one of the more interesting libraries in the language — the optics story is one of its own.
+**Field accessors are top-level functions.** When you declare `User { userId :: String, name :: String, age :: Int }`, Haskell creates three top-level functions: `userId :: User -> String`, `name :: User -> String`, `age :: User -> Int`. They live in the module's namespace. Try to declare another type with a `name` field in the same module and you'll get a duplicate-binding error. Scala developers find this jarring at first: your case class fields become plain functions you apply to a value, not methods you call dot-style. The community has three answers: prefix conventions (`userId`, `userName`, `userAge`, very common in real codebases), the `DuplicateRecordFields` extension (allows the conflict but requires disambiguation at use sites), and the more recent `OverloadedRecordDot` extension (lets you write `user.name` after all). This pain also produced optics, one of the more interesting libraries in the language, but that story gets its own post.
 
-**`deriving` is opt-in.** The `deriving (Show, Eq)` line gives you free instances for printing and equality, the same way `case class` gives them by default in Scala. The difference is that Haskell asks you to ask. I prefer that. It makes the cost of "what am I getting?" visible — you don't have to remember whether `Show` is "a printable form" or "a JSON encoding"; you just look at the line.
+**`deriving` is opt-in.** The `deriving (Show, Eq)` line gives you free instances for printing and equality, the same way `case class` gives them by default in Scala. The difference is that Haskell makes you ask, and I prefer that. You can see what you're getting: you don't have to remember whether `Show` is "a printable form" or "a JSON encoding", you just look at the line.
 
 Update syntax is the same idea, slightly different spelling:
 
@@ -274,7 +274,7 @@ data Shape
   deriving (Show, Eq)
 ```
 
-Almost line for line. The Scala version has named arguments per case; the Haskell version uses positional fields. (Haskell can do named fields per constructor too, though it's less idiomatic for small sum types.) Each case in Scala becomes a constructor in Haskell, with the same arity.
+It's almost line for line. The Scala version has named arguments per case; the Haskell version uses positional fields. (Haskell can do named fields per constructor too, though it's less idiomatic for small sum types.) Each case in Scala becomes a constructor in Haskell, with the same arity.
 
 Pattern matching is the core of working with this stuff. Scala uses `match`/`case`:
 
@@ -298,18 +298,18 @@ area (Triangle a b c)   =
   in sqrt (p * (p - a) * (p - b) * (p - c))
 ```
 
-The forms are interchangeable. Multiple equations is the more common Haskell style — each line is "when called with this shape, return this." It reads close to a mathematical definition.
+The forms are interchangeable. Multiple equations are the more common Haskell style: each line says "when called with this shape, return this," which reads close to a mathematical definition.
 
-Both languages warn on non-exhaustive matches. Both can be configured to error. Both will catch you if you add a fourth constructor and forget to update a `match`. The mechanism is the same; the diagnostics are similarly useful.
+Both languages warn on non-exhaustive matches, both can be configured to make that an error, and both will catch you if you add a fourth constructor and forget to update a `match`. The mechanism is the same, and the diagnostics are similarly useful.
 
-A small idiom you'll see in real Haskell — combining patterns at use sites. Settle a list of payments:
+A small idiom you'll see in real Haskell is combining patterns at use sites. To settle a list of payments:
 
 ```haskell
 settleAll :: [Payment] -> [Payment]
 settleAll = map settle
 ```
 
-That's it. `map` over a list, `settle` on each one. The Scala equivalent is the same shape (`payments.map(settle)`), but it's worth noting how much shorter the Haskell _function definition_ gets when you write it point-free: no `payments` argument, no `=>`, no parens. The function _is_ the composition. Once or twice you'll write `settleAll payments = map settle payments` instead, and that's also fine — point-free is a style, not a rule.
+That's it: `map` over a list, `settle` on each one. The Scala equivalent has the same shape (`payments.map(settle)`), but notice how much shorter the Haskell _function definition_ gets when you write it point-free: no `payments` argument, no `=>`, no parens. The function _is_ the composition. Sometimes you'll write `settleAll payments = map settle payments` instead, and that's fine too. Point-free is a style, not a rule.
 
 If you want to filter only the failures and extract the reasons:
 
@@ -319,11 +319,11 @@ failureReasons payments =
   [ reason | p <- payments, Failed reason <- [status p] ]
 ```
 
-That's a _list comprehension_ — Haskell has them, and they look almost identical to Scala's `for ... yield`. The pattern `Failed reason <- [status p]` matches only when the wrapped value is a `Failed`, ignoring the others. Pattern matching shows up everywhere it's useful, not just inside `case` blocks.
+That's a _list comprehension_, and it looks almost identical to Scala's `for ... yield`. The pattern `Failed reason <- [status p]` matches only when the wrapped value is a `Failed`, ignoring the others. Pattern matching works anywhere it's useful, not only inside `case` blocks.
 
-Where the comparison gets interesting is the parts of Scala's data story that don't carry over because Haskell never needed them. There is no `extends AnyRef`. There is no `override def equals`. There is no path where someone on your team subclasses `Payment` and quietly overrides `applyDiscount` to silently catch exceptions. The data is the data; the operations are functions. The OOP escape hatch isn't there.
+The interesting part is what doesn't carry over from Scala's data story, because Haskell never needed it. There's no `extends AnyRef` and no `override def equals`. Nobody on your team can subclass `Payment` and override `applyDiscount` to silently catch exceptions. Data is data, operations are functions, and there's no OOP escape hatch.
 
-If you've spent any real time in Scala, you know what I'm talking about. The escape hatch is rare in good Scala code. But "rare" is not "structurally absent," and rare-but-possible is a cost you pay during code review forever. In Haskell that conversation simply doesn't come up. The reason Haskell can have a smaller toolkit for this stuff isn't that it has fewer features — it's that there's no second job for those features to do.
+If you've spent real time in Scala, you know what I mean. The escape hatch is rare in good Scala code, but "rare" is not "structurally absent," and rare-but-possible is a cost you pay in code review forever. In Haskell that conversation doesn't come up. Haskell gets away with a smaller toolkit here because its features have no second job to do.
 
 ## Option, Either, and the absence of null
 
@@ -361,7 +361,7 @@ divide _ 0 = Left "division by zero"
 divide a b = Right (a `div` b)
 ```
 
-The shapes are identical. `Some` becomes `Just`, `None` becomes `Nothing`, `Left` and `Right` keep their names. `Either` is right-biased in both languages — `Right` is success, `Left` is failure. (Scala 2.11 and earlier had an unbiased `Either`; if you're on a fresh codebase, this isn't a concern, but it is a real thing the older Scala docs will confuse you on.)
+The shapes are identical. `Some` becomes `Just`, `None` becomes `Nothing`, `Left` and `Right` keep their names. `Either` is right-biased in both languages: `Right` is success, `Left` is failure. (Scala 2.11 and earlier had an unbiased `Either`. On a fresh codebase that doesn't matter, but older Scala docs can confuse you on it.)
 
 `getOrElse` is `fromMaybe`:
 
@@ -392,7 +392,7 @@ n = Just 10
 
 Once you get used to `>>=` (it's `flatMap`, written infix), the chain reads almost like the Scala one.
 
-If the `>>=` chain feels heavy, Haskell has a syntactic sugar for exactly this — `do` notation, which is the rough equivalent of Scala's `for`-comprehensions:
+If the `>>=` chain feels heavy, Haskell has syntactic sugar for it: `do` notation, roughly the equivalent of Scala's `for`-comprehensions:
 
 ```haskell
 n :: Maybe Int
@@ -402,13 +402,13 @@ n = do
   if y > 0 then Just (y * 2) else Nothing
 ```
 
-Same expression, more readable. The `do` block desugars to the same `>>=` chain you'd write by hand. Two things to note for a Scala developer: first, `do` works for _anything_ that's a monad — `Maybe`, `Either`, lists, `IO`, parsers — exactly like `for` works over anything with `flatMap`/`map` in Scala. Second, Scala's `for`-comprehension is a bit more powerful in one direction (it desugars to `withFilter` for `if` guards on `Option`/`Either`-style) and weaker in another (it can't desugar `let` bindings as nicely as `do`). The differences are footnotes; the idea is the same.
+It's the same expression, just easier to read, and the `do` block desugars to the `>>=` chain you'd write by hand. Two notes for Scala developers. First, `do` works for _anything_ that's a monad (`Maybe`, `Either`, lists, `IO`, parsers), exactly like `for` works over anything with `flatMap`/`map` in Scala. Second, Scala's `for`-comprehension is a bit more powerful in one direction (it desugars to `withFilter` for `if` guards on `Option`/`Either`-style) and weaker in another (it can't desugar `let` bindings as nicely as `do`). Those differences are footnotes; the idea is the same.
 
-A few real differences worth flagging.
+There are a few real differences, though.
 
-There's no direct `Try[A]` in Haskell. The Scala instinct of "wrap a thing that might throw" doesn't translate one-to-one because exceptions are an effect, and Haskell tracks effects in the type. The honest equivalent is `IO (Either SomeException a)` plus the `MonadThrow`/`MonadCatch` machinery — a concern for effectful code, not for plain data modeling.
+There's no direct `Try[A]` in Haskell. The Scala instinct of "wrap a thing that might throw" doesn't translate one-to-one because exceptions are an effect, and Haskell tracks effects in the type. The closest equivalent is `IO (Either SomeException a)` plus the `MonadThrow`/`MonadCatch` machinery, which matters for effectful code rather than plain data modeling.
 
-A pattern you'll see immediately, though, is using `Either` with a domain-specific error type. Where Scala devs reach for `Either[Throwable, A]` (or stack errors onto a sealed trait), Haskell makes the data type cheap enough that you just do that everywhere:
+What you will see right away is `Either` with a domain-specific error type. Where Scala devs reach for `Either[Throwable, A]` (or stack errors onto a sealed trait), Haskell makes data types cheap enough that a custom error type is the default:
 
 ```haskell
 data ParseError
@@ -425,11 +425,11 @@ parseCurrencyStrict s   = case map toUpper s of
   other -> Left (UnknownCurrency other)
 ```
 
-Same shape as the Scala version. The cultural difference is that "make a small ADT for the error" is the _first_ thing you reach for in Haskell, not the third. Sealed traits make this perfectly possible in Scala too; the question is whether your codebase actually does it. In Haskell, the answer is almost always yes, because the cost of declaring a new type is so low.
+The shape matches the Scala version. The cultural difference is that "make a small ADT for the error" is the _first_ thing you reach for in Haskell, not the third. Sealed traits make this perfectly possible in Scala; the question is whether your codebase actually does it. In Haskell it almost always does, because declaring a new type costs so little.
 
-There is no `null` in Haskell. None. Anywhere. The bottom value `undefined` exists for the same reason `???` does in Scala (placeholder during development), but you cannot store one in a typed reference and pretend you didn't. The "is this nullable?" review comment that shows up over and over in a long Scala career simply doesn't get written.
+There is no `null` in Haskell, anywhere. The bottom value `undefined` exists for the same reason `???` does in Scala (placeholder during development), but you can't store one in a typed reference and pretend you didn't. The "is this nullable?" review comment, which shows up over and over in a long Scala career, never gets written.
 
-In short: the gap is mostly naming and syntax. The philosophical difference is null itself. Once you stop writing optional types as a defensive habit and start writing them as a domain choice, this is one of those cases where Haskell isn't doing anything cleverer than Scala — it's just been doing the same thing without the legacy.
+So the gap is mostly naming and syntax, and the one philosophical difference is null itself. Once you write optional types as a domain choice rather than a defensive habit, you see that Haskell isn't doing anything cleverer than Scala here. It has just been doing the same thing without the legacy.
 
 ## Newtypes are free, opaque types are almost
 
@@ -440,7 +440,7 @@ case class PaymentId(value: String)
 case class UserId(value: String)
 ```
 
-Two strings, but the type system keeps them apart. You can't pass a `UserId` where a `PaymentId` is expected. Worth it. The cost is a wrapper object on the heap, which the JVM may or may not optimize away. There's an `extends AnyVal` you can add, with caveats and edge cases that would need their own footnote-of-a-footnote, and which still doesn't fully give you the zero-cost guarantee in every situation.
+Both wrap a string, but the type system keeps them apart: you can't pass a `UserId` where a `PaymentId` is expected. That's worth it. The cost is a wrapper object on the heap, which the JVM may or may not optimize away. You can add `extends AnyVal`, but it comes with caveats and edge cases that would need their own footnote-of-a-footnote, and it still doesn't guarantee zero cost in every situation.
 
 Scala 3 fixed this with opaque types:
 
@@ -458,7 +458,7 @@ object Ids:
     extension (u: UserId) def value: String = u
 ```
 
-`PaymentId` is a `String` at runtime. The compiler treats it as a distinct type _outside_ the `Ids` module, and as a `String` _inside_ it. You get the type discipline at no runtime cost. This is genuinely good. It's also a little awkward: instances (think `Show`, `Encoder`, `Ordering`) need to be defined inside the wrapper module or worked around through `given` instances elsewhere. Deriving on opaque types is messy.
+`PaymentId` is a `String` at runtime. The compiler treats it as a distinct type _outside_ the `Ids` module, and as a `String` _inside_ it. You get the type discipline at no runtime cost, which is genuinely good. It's also a little awkward: instances (think `Show`, `Encoder`, `Ordering`) need to be defined inside the wrapper module or worked around through `given` instances elsewhere. Deriving on opaque types is messy.
 
 Haskell's `newtype` is the same idea, but it has been there since 1990 and the surrounding language assumes you'll use it:
 
@@ -470,9 +470,9 @@ newtype UserId = UserId { unUserId :: String }
   deriving (Show, Eq, Ord)
 ```
 
-Three lines. Zero runtime cost, guaranteed. `Show`, `Eq`, `Ord` derive automatically — and not just because the type is "kind of a string" — because of `GeneralizedNewtypeDeriving`, which says: if `String` had this instance, `PaymentId` (which _is_ a `String` at runtime) gets the same one. Need a JSON encoder? Derive `ToJSON`. Need `Hashable`? Derive `Hashable`. The pattern was built into the language so deeply that it's almost free to use.
+Three lines, with zero runtime cost guaranteed. `Show`, `Eq`, and `Ord` derive automatically, and not just because the type is "kind of a string." It's because of `GeneralizedNewtypeDeriving`, which says: if `String` had this instance, `PaymentId` (which _is_ a `String` at runtime) gets the same one. Need a JSON encoder? Derive `ToJSON`. Need `Hashable`? Derive `Hashable`. The pattern is built so deeply into the language that it's almost free to use.
 
-There's also a convention worth knowing: the _smart constructor_ pattern. You declare the newtype, but you only export a function that builds it, not the constructor itself. That gives you a value-level invariant the type system can rely on:
+Another convention worth knowing is the _smart constructor_. You declare the newtype but export only a function that builds it, not the constructor itself. That gives you a value-level invariant the type system can rely on:
 
 ```haskell
 module Money (Money, mkMoney, unMoney) where
@@ -488,9 +488,9 @@ unMoney :: Money -> Double
 unMoney (Money x) = x
 ```
 
-Outside this module, no one can build a `Money` with a negative value. Scala devs reach for `private constructor` plus a companion-object `apply` to do the same thing — slightly more ceremony, same shape. The difference is that, in Haskell, the _language's module system_ enforces the boundary; in Scala, it's the OOP visibility rules layered on top of it. Same result, different machinery.
+Outside this module, no one can build a `Money` with a negative value. Scala devs use a `private constructor` plus a companion-object `apply` for the same thing, with slightly more ceremony. The difference is that in Haskell the _language's module system_ enforces the boundary, while in Scala it's the OOP visibility rules layered on top.
 
-If you want to be more selective with deriving — say, your `Score` newtype should combine via addition rather than via the underlying `Int`'s default — there's `DerivingVia`:
+If you want more control over deriving (say, your `Score` newtype should combine via addition rather than via the underlying `Int`'s default), there's `DerivingVia`:
 
 ```haskell
 {-# LANGUAGE DerivingVia #-}
@@ -502,9 +502,9 @@ newtype Score = Score Int
   deriving Monoid    via (Sum Int)
 ```
 
-`Sum Int` is a stdlib newtype around `Int` whose `Semigroup` instance is "combine by adding." The `via (Sum Int)` clause says "treat my `Score` as a `Sum Int` for these instances, but keep its own identity for everything else." Now `Score 1 <> Score 2` is `Score 3` — addition — and `mempty :: Score` is `Score 0`.
+`Sum Int` is a stdlib newtype around `Int` whose `Semigroup` instance is "combine by adding." The `via (Sum Int)` clause says "treat my `Score` as a `Sum Int` for these instances, but keep its own identity for everything else." Now `Score 1 <> Score 2` is `Score 3` (addition), and `mempty :: Score` is `Score 0`.
 
-The same pattern scales to anything. JSON encodings, ORM mappings, default printer formats — all become "pick a stand-in and inherit its instance." This is a feature Scala developers spend years asking for: the ability to say "I want this instance, _but_ derived this way, not that way." Haskell ships it as a one-line declaration. It does for type class instances what `newtype` did for nominal typing: makes a heavyweight thing lightweight enough to use casually.
+The same pattern works for anything: JSON encodings, ORM mappings, default printer formats. You pick a stand-in and inherit its instance. Scala developers spend years asking for this, the ability to say "I want this instance, _but_ derived this way, not that way." Haskell ships it as a one-line declaration. It does for type class instances what `newtype` did for nominal typing: it makes a heavyweight thing light enough to use casually.
 
 In a `Payment` record, the typed ids slot in directly:
 
@@ -522,19 +522,19 @@ Now a function with the wrong-order arguments:
 -- Payment uid pid 0  -- type error, would not compile
 ```
 
-Same guarantee Scala 3's opaque types give you, with no module tricks, with full derivation, and with the rest of the ecosystem already designed around it. You'll see `newtype` everywhere in Haskell. Not just for ids — for every place where two values that share a runtime representation should be kept apart by the type system. `newtype Sum a = Sum a` for monoidal addition. `newtype Product a = Product a` for the multiplicative version. `newtype Compose f g a = Compose (f (g a))`. The cost of introducing a new type is so low that the language has settled into using it as a _modelling_ tool, not a workaround.
+That's the same guarantee Scala 3's opaque types give you, but with no module tricks, with full derivation, and with the rest of the ecosystem already designed around it. You'll see `newtype` everywhere in Haskell, not only for ids but anywhere two values with the same runtime representation should be kept apart by the type system: `newtype Sum a = Sum a` for monoidal addition, `newtype Product a = Product a` for the multiplicative version, `newtype Compose f g a = Compose (f (g a))`. A new type costs so little that the language uses it as a _modelling_ tool, not a workaround.
 
-This is the main thread of the whole post in miniature. Scala has the right idea — opaque types are the right idea. The language just hasn't been built around them long enough for the rest of the toolkit to assume they exist. In Haskell, every library, every class instance, every piece of generic code already assumes that you'll wrap your `String`s when you need to. The cost of doing the right thing has been driven to zero. That comparison gets even more one-sided once you reach deriving and `DerivingVia`.
+This section is the whole post in miniature. Opaque types are the right idea, but Scala hasn't been built around them long enough for the rest of the toolkit to assume they exist. In Haskell, libraries, class instances, and generic code already assume you'll wrap your `String`s when you need to, so doing the right thing costs nothing. That comparison gets even more one-sided once you reach deriving and `DerivingVia`.
 
 ## Where this is going
 
-The thesis at the top was that Scala's case classes and sealed traits are already Haskell's ADTs in disguise — and that what changes is what drops away when the language commits. We've now seen this in five small places. Functions are curried by default; partial application is just syntax. Records and sums are the same shapes you write in Scala, minus the OOP attachments. `Option` and `Either` carry over almost verbatim, minus `null`. `newtype` is what `opaque type` will be in another decade of ecosystem work.
+I started with the claim that Scala's case classes and sealed traits are already Haskell's ADTs in disguise, and that what changes is what drops away when the language commits. We've now seen this in five small places. Functions are curried by default; partial application is just syntax. Records and sums are the same shapes you write in Scala, minus the OOP attachments. `Option` and `Either` carry over almost verbatim, minus `null`. `newtype` is what `opaque type` will be in another decade of ecosystem work.
 
-None of this is the headline. It's the place where the comparison is most flattering to Scala — because Scala has been getting these things right for a long time, and Haskell's lead here is honestly small. If you've already trained your hands on case classes and sealed traits, picking up the equivalent Haskell forms is more like noticing where the friction was than learning a new toolkit.
+This is the part of the comparison most flattering to Scala, because Scala has been getting these things right for a long time and Haskell's lead here is honestly small. If your hands are already trained on case classes and sealed traits, picking up the Haskell forms is more about noticing where the friction was than learning a new toolkit.
 
 Every snippet above was checked against a compiler before it appeared here.
 
-If you read this far and the only thought is _"yeah, none of that is news,"_ — good. That's the whole point of starting here.
+If you read this far and your only thought is _"yeah, none of that is news,"_ good. That's why the series starts here.
 
 ---
 

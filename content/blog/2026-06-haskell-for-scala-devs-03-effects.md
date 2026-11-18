@@ -1,28 +1,28 @@
 +++
 title = "Haskell for Scala Developers: Part 3 — Effects and Concurrency"
 date = 2026-06-17
-description = "For working Scala developers picking up Haskell: IO and referential transparency, the Future critique, error handling as an effect, Resource/bracket, Ref and STM, structured concurrency, and ZIO's R/E/A versus Haskell's MTL and effect-handler libraries."
+description = "For Scala developers learning Haskell: IO and referential transparency, what Future gets wrong, errors as an effect, Resource/bracket, Ref and STM, structured concurrency, and ZIO's R/E/A versus Haskell's MTL and effect-handler libraries."
 path = "blog/2026/06/haskell-for-scala-devs-03-effects"
 [taxonomies]
 tags = ["haskell", "scala", "functional-programming", "haskell-for-scala-devs"]
 categories = ["programming"]
 +++
 
-`IO` is a `Monad` in both Scala and Haskell, and `do { line <- getLine; putStrLn line }` is the same shape as `for { line <- IO.readLine; _ <- IO.println(line) } yield ()`. That equivalence is where this post starts — with the part of the language that made half the Scala community pick up Cats Effect in the first place.
+`IO` is a `Monad` in both Scala and Haskell, and `do { line <- getLine; putStrLn line }` is the same shape as `for { line <- IO.readLine; _ <- IO.println(line) } yield ()`. This post starts there, with the part of the language that made half the Scala community pick up Cats Effect in the first place.
 
-Here's the thesis, stated plainly: **Cats Effect's `IO` is Haskell's `IO`, ported to the JVM.** Not "inspired by." Ported. The referential transparency, the lazy description-of-a-computation, the run-it-at-the-edge model, `bracket`, `Ref`, `race`, fibers — all of it is the Haskell `IO` programming model rebuilt on a runtime that wasn't designed for it. Once you delete `Future` from your mental model, the distance between a Cats Effect program and the equivalent Haskell program is mostly tooling and syntax.
+My thesis: **Cats Effect's `IO` is Haskell's `IO`, ported to the JVM.** Ported, not "inspired by." The referential transparency, the lazy description of a computation, the run-it-at-the-edge model, `bracket`, `Ref`, `race`, fibers: all of it is the Haskell `IO` programming model rebuilt on a runtime that wasn't designed for it. Once you delete `Future` from your mental model, the distance between a Cats Effect program and the equivalent Haskell program is mostly tooling and syntax.
 
-ZIO is the one place that story gets more interesting, and it's why I asked to cover both. ZIO's `ZIO[R, E, A]` is a genuinely different bet — it folds the environment and the error type into the effect type itself. Haskell makes that same bet too, but it spreads the pieces across different tools: `ReaderT` for the `R`, `ExceptT` or plain exceptions for the `E`, and increasingly an effect-handler library (`effectful`, `polysemy`, `fused-effects`) when you want the whole thing in one place. Same problem, different decomposition, real trade-offs on both sides.
+ZIO is where that story gets more interesting, and it's why I asked to cover both. ZIO's `ZIO[R, E, A]` is a different bet: it folds the environment and the error type into the effect type itself. Haskell makes the same bet but spreads the pieces across different tools: `ReaderT` for the `R`, `ExceptT` or plain exceptions for the `E`, and increasingly an effect-handler library (`effectful`, `polysemy`, `fused-effects`) when you want the whole thing in one place. Same problem, split up differently, with real trade-offs on both sides.
 
-The map: why `Future` is the thing to delete, what `IO`-as-a-value buys you, how errors become just another effect, resource safety, shared state, structured concurrency with a worked example, and finally ZIO against Haskell's MTL. The one neighbor I'm leaving for its own post is streaming — fs2 and ZIO Streams against `conduit` and `streamly` is a comparison that deserves the room.
+The plan: why `Future` is the thing to delete, what treating `IO` as a value buys you, how errors become just another effect, resource safety, shared state, structured concurrency with a worked example, and finally ZIO against Haskell's MTL. I'm leaving streaming for its own post, because fs2 and ZIO Streams against `conduit` and `streamly` deserves the room.
 
 <!-- more -->
 
 ## The thing Future got wrong
 
-`Future` is eager. The moment you construct one, it starts running on some thread pool. That single design decision is the reason `Future` is not referentially transparent, and referential transparency is the entire pitch for `IO`.
+`Future` is eager. The moment you construct one, it starts running on some thread pool. That one design decision is why `Future` is not referentially transparent, and referential transparency is the entire pitch for `IO`.
 
-Referential transparency means you can replace a name with its definition and the program behaves identically. It's the property that lets you refactor without fear — pull a repeated expression into a `val`, inline a `val` back to its use sites, and nothing changes. `Future` breaks it. Watch:
+Referential transparency means you can replace a name with its definition and the program behaves identically. It's what lets you refactor without fear: pull a repeated expression into a `val`, inline a `val` back to its use sites, and nothing changes. `Future` breaks it. Watch:
 
 ```scala
 val f = Future { println("running"); 42 }
@@ -36,7 +36,7 @@ running
 sum = 84
 ```
 
-The body runs once. The `Future` started executing when it was constructed, and the result is memoized, so the two `Await`s observe the same completed value. Now inline `f` — replace the name with its definition at both use sites, which referential transparency promises is a safe edit:
+The body runs once. The `Future` started executing when it was constructed, and the result is memoized, so the two `Await`s see the same completed value. Now inline `f` by replacing the name with its definition at both use sites. Referential transparency promises this is a safe edit:
 
 ```scala
 val a = Await.result(Future { println("running"); 42 }, 1.second)
@@ -50,15 +50,15 @@ running
 sum = 84
 ```
 
-Two `running`s. The "obviously safe" refactor changed the observable behavior of the program. A `Future` is not a description of work to be done; it's work that is already happening, wearing the costume of a value. You cannot reason about it equationally, you cannot retry it by re-running it, and you cannot pass it around as a plain value without smuggling its execution along with it.
+Two `running`s. The "obviously safe" refactor changed what the program does. A `Future` isn't a description of work to be done. It's work that is already happening, wearing the costume of a value. You can't reason about it equationally, you can't retry it by re-running it, and you can't pass it around as a plain value without smuggling its execution along with it.
 
-`Future` is fine for what the standard library needed it for — fire off some async work, get a handle, `await` it once. It's the right tool for a great many small jobs and it ships in the box. But it is the wrong foundation for a program built out of composable effects, and that is precisely the gap Cats Effect and ZIO exist to fill. They give you back the thing `Future` traded away.
+`Future` is fine for what the standard library needed it for: fire off some async work, get a handle, `await` it once. It's the right tool for lots of small jobs, and it ships in the box. But it's the wrong foundation for a program built from composable effects, and that's the gap Cats Effect and ZIO fill. They give you back what `Future` traded away.
 
 ## IO is a value
 
-`IO[A]` is a description of a computation that, when run, produces an `A` (or fails, or runs forever). Constructing it does nothing. It's an immutable value like any other — you build big ones out of small ones, pass them around, store them in a `Map`, and none of that executes a single line until you hand the finished description to a runtime at the edge of your program.
+`IO[A]` is a description of a computation that, when run, produces an `A` (or fails, or runs forever). Constructing it does nothing. It's an immutable value like any other. You build big ones out of small ones, pass them around, store them in a `Map`, and none of that executes a single line until you hand the finished description to a runtime at the edge of your program.
 
-Here's a small Cats Effect program, and the thing that gives Scala developers pause the first time they see it:
+Here's a small Cats Effect program. The `unused` line is what gives Scala developers pause the first time they see it:
 
 ```scala
 object IoValue extends IOApp.Simple:
@@ -82,7 +82,7 @@ step 2: got 42
 result = 42
 ```
 
-`unused` is a perfectly good `IO[Unit]` that says "print this line." It never prints, because nothing ever runs it. That's not a quirk; that's the whole model. The Haskell version is the same program, and behaves identically:
+`unused` is a perfectly good `IO[Unit]` that says "print this line." It never prints, because nothing ever runs it. That isn't a quirk; it's how the model works. The Haskell version is the same program and behaves identically:
 
 ```haskell
 program :: IO Int
@@ -106,19 +106,19 @@ step 2: got 42
 result = 42
 ```
 
-`let unused = putStrLn "..."` binds a name to an `IO ()` value and the line never prints, for exactly the reason the Scala line never prints. The two programs are structurally the same: a sequence of effects composed with `for` / `do`, bound names where you need an intermediate value, run at one well-defined point.
+`let unused = putStrLn "..."` binds a name to an `IO ()` value, and the line never prints for the same reason the Scala line never prints. The two programs have the same structure: a sequence of effects composed with `for` / `do`, bound names where you need an intermediate value, and one well-defined point where it all runs.
 
-Two things to notice. First, `IO` is just another `Monad`. The `for`-comprehension and the `do`-block you already understand for `Option` and `Either` are the same `for` and `do` here. There's no new control-flow construct to learn; `IO` slots into the abstraction you already have. Cats Effect's `IO` is a lawful `Monad` (and `MonadCancel`, and a dozen other things), and that's why `for` works over it. Haskell's `IO` is a `Monad`, and that's why `do` works over it. Same machinery, all the way down.
+Two things to notice. First, `IO` is just another `Monad`. The `for`-comprehension and the `do`-block you already know from `Option` and `Either` are the same `for` and `do` here. There's no new control-flow construct to learn. Cats Effect's `IO` is a lawful `Monad` (and `MonadCancel`, and a dozen other things), which is why `for` works over it. Haskell's `IO` is a `Monad`, which is why `do` works over it. Same machinery, all the way down.
 
-Second, the running. A Haskell program *is* a value of type `IO ()` named `main` — the runtime system takes that description and executes it. There is no `unsafeRunSync` sprinkled through your code; the only "run" is the one the runtime does to `main`. Cats Effect gives you `IOApp` for exactly this discipline: your `run` returns an `IO`, the framework executes it once at the true edge. You *can* call `unsafeRunSync()` in Cats Effect — the word `unsafe` is the library telling you that you've left the description world and you'd better have a good reason. Haskell doesn't even offer the equivalent in normal code; the edge is `main` and that's that.
+Second, running it. A Haskell program *is* a value of type `IO ()` named `main`, and the runtime system takes that description and executes it. There's no `unsafeRunSync` sprinkled through your code; the only "run" is the one the runtime does to `main`. Cats Effect gives you `IOApp` for the same discipline: your `run` returns an `IO`, and the framework executes it once at the true edge. You *can* call `unsafeRunSync()` in Cats Effect. The word `unsafe` is the library telling you that you've left the description world and you'd better have a good reason. Haskell doesn't even offer the equivalent in normal code; the edge is `main` and that's that.
 
-This is the property the type system is protecting, and it's the subject of an [earlier post on why Haskell's effect tracking matters](@/blog/2026-04-haskell-was-waiting-for-this.md): a function whose type is `Int -> Int` *cannot* touch the world. No logging, no clock, no database, no surprise. If it touches the world, its type says `IO` and you can see it at the call site. Cats Effect recreates this discipline by convention and by wrapping every effect in `IO`; Haskell enforces it because there is no other way to perform an effect. The discipline is the same. In one language it's a library asking nicely, and in the other it's the only door in the building.
+This is the property the type system protects, and it's the subject of an [earlier post on why Haskell's effect tracking matters](@/blog/2026-04-haskell-was-waiting-for-this.md): a function whose type is `Int -> Int` *cannot* touch the world. No logging, no clock, no database, no surprise. If it touches the world, its type says `IO` and you can see it at the call site. Cats Effect recreates this discipline by convention and by wrapping every effect in `IO`; Haskell enforces it because there's no other way to perform an effect. The discipline is the same, but in one language it's a library asking nicely, and in the other it's the only door in the building.
 
 ## Errors are an effect (the Try story)
 
-Scala's `Try[A]` doesn't translate to Haskell one-to-one, because exceptions are an effect, and Haskell tracks effects in the type. Here's what that means in practice.
+Scala's `Try[A]` doesn't translate to Haskell one-to-one, because exceptions are an effect and Haskell tracks effects in the type.
 
-In Scala you have a few overlapping tools for "this might throw": `Try[A]`, `Either[Throwable, A]`, and — once you're in an effect type — `IO`'s own error channel. Cats Effect's `IO` carries failure the same way Haskell's `IO` does: the effect can fail with a `Throwable`, and you have combinators to observe and recover. `attempt` reifies a possible failure into a value, and `handleErrorWith` recovers with a fallback effect:
+In Scala you have a few overlapping tools for "this might throw": `Try[A]`, `Either[Throwable, A]`, and, once you're in an effect type, `IO`'s own error channel. Cats Effect's `IO` carries failure the same way Haskell's `IO` does: the effect can fail with a `Throwable`, and you have combinators to observe it and recover. `attempt` turns a possible failure into a value, and `handleErrorWith` recovers with a fallback effect:
 
 ```scala
 val boom: IO[Int] = IO.raiseError(new RuntimeException("boom"))
@@ -139,7 +139,7 @@ attempt: Left(java.lang.RuntimeException: boom)
 handleErrorWith: -1
 ```
 
-Haskell's `IO` works the same way, with the same two moves. `try` reifies a failure into `IO (Either SomeException a)` — which is exactly `Try`, spelled as the thing it always was — and `handle` (the argument-flipped `catch`) recovers with a fallback effect:
+Haskell's `IO` works the same way, with the same two moves. `try` turns a failure into `IO (Either SomeException a)`, which is exactly `Try`, spelled as what it always was. `handle` (the argument-flipped `catch`) recovers with a fallback effect:
 
 ```haskell
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -162,17 +162,17 @@ try: Left user error (boom)
 handle: -1
 ```
 
-There it is. `try boom :: IO (Either SomeException Int)` is `Try` — it's the type `IO (Either SomeException a)`, produced on demand by a combinator rather than handed to you as a separate wrapper type. The reason Haskell doesn't ship a standalone `Try` is that it doesn't need one: the catch-and-recover combinators live on `IO` itself, because throwing is an effect and effects live in `IO`. You don't wrap a maybe-throwing computation in a new type; you run it in the effect type that already models "this interacts with a world where things go wrong."
+So `try boom :: IO (Either SomeException Int)` is `Try`: the type `IO (Either SomeException a)`, produced on demand by a combinator instead of handed to you as a separate wrapper type. Haskell doesn't ship a standalone `Try` because it doesn't need one. The catch-and-recover combinators live on `IO` itself, because throwing is an effect and effects live in `IO`. You don't wrap a maybe-throwing computation in a new type. You run it in the effect type that already models "this interacts with a world where things go wrong."
 
-The honest mechanics, briefly. `throwIO` raises an exception inside `IO` with a guaranteed ordering relative to other effects. `try` runs an action and hands you `Left e` on failure or `Right a` on success. `catch` and `handle` run an action and, on a matching exception, run your handler instead. The `MonadThrow` / `MonadCatch` classes (from the `exceptions` package, and re-exported all over the ecosystem) generalize `throwIO` / `catch` so the same code works in `IO` or in a monad transformer stack on top of it — the same way Cats Effect's `MonadError` / `ApplicativeError` generalize `raiseError` / `handleErrorWith`. The vocabularies line up almost word for word: `raiseError`/`throwIO`, `attempt`/`try`, `handleErrorWith`/`handle`, `MonadError`/`MonadThrow`.
+The mechanics, briefly. `throwIO` raises an exception inside `IO` with a guaranteed ordering relative to other effects. `try` runs an action and hands you `Left e` on failure or `Right a` on success. `catch` and `handle` run an action and, on a matching exception, run your handler instead. The `MonadThrow` / `MonadCatch` classes (from the `exceptions` package, and re-exported all over the ecosystem) generalize `throwIO` / `catch` so the same code works in `IO` or in a monad transformer stack on top of it, the same way Cats Effect's `MonadError` / `ApplicativeError` generalize `raiseError` / `handleErrorWith`. The vocabularies line up almost word for word: `raiseError`/`throwIO`, `attempt`/`try`, `handleErrorWith`/`handle`, `MonadError`/`MonadThrow`.
 
-What this post deliberately won't relitigate is the typed-versus-untyped-errors debate. `IO`'s error channel in both languages is untyped (a `Throwable`, a `SomeException`) — you find out what can go wrong by reading, not by checking a type. The typed-error story is real and it's where ZIO's `E` and Haskell's `ExceptT` come in; we get to it at the end of the post. For the mechanical translation of "I have a thing that throws," the answer is: it's an `IO`, and you `try` it.
+I'm deliberately not relitigating the typed-versus-untyped-errors debate here. `IO`'s error channel in both languages is untyped (a `Throwable`, a `SomeException`), so you find out what can go wrong by reading the code, not by checking a type. Typed errors are where ZIO's `E` and Haskell's `ExceptT` come in, and we get to them at the end of the post. For the mechanical translation of "I have a thing that throws," the answer is: it's an `IO`, and you `try` it.
 
 ## Resources: bracket and Resource
 
-Acquire something, use it, release it — and release it even if the use blows up or gets cancelled. Every language has a version of this; Java has try-with-resources, Scala has `Using`. In effectful code the primitive is `bracket`, and Cats Effect and Haskell spell it almost identically.
+Acquire something, use it, release it, and release it even if the use blows up or gets cancelled. Every language has a version of this: Java has try-with-resources, Scala has `Using`. In effectful code the primitive is `bracket`, and Cats Effect and Haskell spell it almost identically.
 
-Cats Effect gives you two front-ends to the same idea. `Resource` is the composable, value-level one — you build a `Resource[IO, A]` and `use` it:
+Cats Effect gives you two front-ends to the same idea. `Resource` is the composable, value-level one. You build a `Resource[IO, A]` and `use` it:
 
 ```scala
 val resource: Resource[IO, Int] =
@@ -197,7 +197,7 @@ release
 result=Left(java.lang.RuntimeException: boom)
 ```
 
-The second `use` raises mid-flight, and `release` still runs before the error propagates. That's the guarantee. Haskell's `bracket` from `Control.Exception` is the same three arguments — acquire, release, use — with the same promise that release runs on both the normal and the exceptional path:
+The second `use` raises mid-flight, and `release` still runs before the error propagates. That's the guarantee. Haskell's `bracket` from `Control.Exception` takes the same three arguments (acquire, release, use) with the same promise that release runs on both the normal and the exceptional path:
 
 ```haskell
 acquire :: IO Int
@@ -225,9 +225,9 @@ release
 result=Left user error (boom)
 ```
 
-Line for line, the same program. `bracket acquire release use` is `Resource.make(acquire)(release).use(use)` with the arguments in a different order. The acquire/use/release triple is identical because the problem is identical; the only difference is how many spellings each ecosystem ships. Cats Effect offers `bracket`, `bracketCase` (the release sees *how* the use finished — completed, errored, or cancelled), and the `Resource` data type for when you want to compose a dozen of these and thread them through your program as one value. Haskell offers `bracket`, `bracketOnError`, `finally`, `onException` in `base`, and the `resourcet` / `managed` packages when you want the composable, `Resource`-shaped version. ZIO has its own twin — `ZIO.acquireRelease` and the `Scope` type — built on the same bones.
+Line for line, the same program. `bracket acquire release use` is `Resource.make(acquire)(release).use(use)` with the arguments in a different order. The acquire/use/release triple is identical because the problem is identical; the only difference is how many spellings each ecosystem ships. Cats Effect offers `bracket`, `bracketCase` (the release sees *how* the use finished: completed, errored, or cancelled), and the `Resource` data type for when you want to compose a dozen of these and thread them through your program as one value. Haskell offers `bracket`, `bracketOnError`, `finally`, and `onException` in `base`, plus the `resourcet` / `managed` packages when you want the composable, `Resource`-shaped version. ZIO has its own twin, `ZIO.acquireRelease` and the `Scope` type, built on the same bones.
 
-The thing worth internalizing: cancellation is part of this story in both ecosystems. A `Resource`/`bracket` release runs when the surrounding fiber is cancelled, not just when it errors or completes. That's what makes the next section's "cancel the rest on first failure" safe — the resources held by the cancelled work get cleaned up.
+Cancellation is part of this in both ecosystems. A `Resource`/`bracket` release runs when the surrounding fiber is cancelled, not just when it errors or completes. That's what makes the next section's "cancel the rest on first failure" safe: the resources held by the cancelled work get cleaned up.
 
 ## Shared state: Ref, IORef, and STM
 
@@ -260,9 +260,9 @@ main = do
 total=1000
 ```
 
-`Ref.update` is atomic; so is `atomicModifyIORef'` (the strict, atomic variant — plain `modifyIORef` would race, and the prime keeps the strictness so you don't build up a tower of unevaluated increments). ZIO's `Ref` is the same thing under a third name. For a single cell, atomic update is all you need.
+`Ref.update` is atomic, and so is `atomicModifyIORef'`. It's the strict, atomic variant: plain `modifyIORef` would race, and the prime keeps it strict so you don't build up a tower of unevaluated increments. ZIO's `Ref` is the same thing under a third name. For a single cell, atomic update is all you need.
 
-The interesting one is `STM` — software transactional memory. When you need to update *several* cells together, atomically, with no locks and no possibility of observing a half-finished state, you reach for transactions. Haskell's version is the original, and it's genuinely lovely:
+The interesting one is `STM`, software transactional memory. When you need to update *several* cells together, atomically, with no locks and no chance of observing a half-finished state, you reach for transactions. Haskell's version is the original, and it's genuinely lovely:
 
 ```haskell
 main :: IO ()
@@ -277,13 +277,13 @@ main = do
 total=1000
 ```
 
-A `TVar` is a transactional variable. Anything you do inside `atomically` is one transaction — it either commits as a unit or retries from the top, and the type system stops you from doing `IO` inside a transaction (you can't `putStrLn` in there, because that couldn't be rolled back). The `STM` monad also gives you `retry` (block until some `TVar` you read changes, then try again) and `orElse` (attempt one transaction, fall back to another) — the building blocks for queues, semaphores, and every other concurrency structure, composed transactionally instead of with hand-rolled locks. The counter above doesn't need `retry`/`orElse`; a real bounded queue does.
+A `TVar` is a transactional variable. Anything you do inside `atomically` is one transaction: it either commits as a unit or retries from the top. The type system stops you from doing `IO` inside a transaction (you can't `putStrLn` in there, because that couldn't be rolled back). The `STM` monad also gives you `retry` (block until some `TVar` you read changes, then try again) and `orElse` (attempt one transaction, fall back to another). With those you build queues, semaphores, and every other concurrency structure, composed transactionally instead of with hand-rolled locks. The counter above doesn't need `retry`/`orElse`; a real bounded queue does.
 
-Here's the honest framing of the comparison, because it's easy to oversell. Haskell's `STM` lives in the `stm` package, the `STM` monad is part of the standard toolbox, and — this is the real point — the GHC runtime was built with transactional memory in mind. Cats Effect has an `STM` now, and ZIO has `ZSTM`; they're good, and they give you the same `atomically` / `retry` / `orElse` shape. The difference isn't that the JVM "can't" do STM — it plainly does. It's that on the JVM, STM is a library riding on a runtime that was designed for locks and threads, while in Haskell it's a feature the runtime was designed to support. Same idea, different provenance, and in practice the Haskell version has had thirty years to become the default answer rather than an advanced option. (The deeper "mutation is an effect, not a default" framing — and what that does to the OOP habits you bring from Scala — is a topic of its own.)
+This comparison is easy to oversell, so I'll be careful. Haskell's `STM` lives in the `stm` package, the `STM` monad is part of the standard toolbox, and, most importantly, the GHC runtime was built with transactional memory in mind. Cats Effect has an `STM` now, and ZIO has `ZSTM`. They're good, and they give you the same `atomically` / `retry` / `orElse` shape. The JVM plainly can do STM. The difference is that on the JVM, STM is a library riding on a runtime designed for locks and threads, while in Haskell it's a feature the runtime was designed to support. In practice the Haskell version has had thirty years to become the default answer rather than an advanced option. (The deeper "mutation is an effect, not a default" framing, and what it does to the OOP habits you bring from Scala, is a topic of its own.)
 
 ## Concurrency: fibers, async, race, timeout
 
-Now the payoff. Both ecosystems give you lightweight concurrency — green threads, scheduled by the runtime, cheap enough to spawn millions of — plus a set of combinators for running things in parallel, racing them, and timing them out. The names differ; the model is the same.
+Both ecosystems give you lightweight concurrency (green threads, scheduled by the runtime, cheap enough to spawn millions of) plus combinators for running things in parallel, racing them, and timing them out. The names differ; the model is the same.
 
 A *fiber* in Cats Effect is a `forkIO`-d thread in Haskell or an `async` in the `async` package. You `start` a fiber and `join` it (Cats Effect), or `async` an action and `wait` for it (Haskell). You rarely write that by hand, though, because the high-level combinators cover most needs. The two you'll reach for constantly:
 
@@ -331,9 +331,9 @@ race winner: Right "fast"
 timeout: timed out
 ```
 
-`IO.race` and `Control.Concurrent.Async.race` are the same primitive, down to returning an `Either` that tells you which side won. There's one genuine difference, and it's worth flagging because it bites: **`timeout` means slightly different things in the two libraries.** Cats Effect's `.timeout` *raises* a `TimeoutException` when the deadline passes — a timeout is a failure, and it propagates like one. Haskell's `System.Timeout.timeout` *returns* `Maybe a` — `Nothing` on expiry — so a timeout is a value you pattern-match, not an exception that unwinds. Neither is wrong; they're different choices about whether "we ran out of time" is exceptional. If you want Haskell's `timeout` to behave like Cats Effect's — raise and propagate — you build it from `race`: race the action against a `threadDelay` that throws. That's exactly the construct, and it matters for the anchor below.
+`IO.race` and `Control.Concurrent.Async.race` are the same primitive, down to returning an `Either` that tells you which side won. There's one real difference, and it's worth flagging because it bites: **`timeout` means slightly different things in the two libraries.** Cats Effect's `.timeout` *raises* a `TimeoutException` when the deadline passes, so a timeout is a failure and propagates like one. Haskell's `System.Timeout.timeout` *returns* `Maybe a` (`Nothing` on expiry), so a timeout is a value you pattern-match, not an exception that unwinds. Neither is wrong; they're different choices about whether running out of time is exceptional. If you want Haskell's `timeout` to raise and propagate like Cats Effect's, you build it from `race`: race the action against a `threadDelay` that throws. That construct matters for the anchor example below.
 
-The anchor for this post is a concurrent fetcher: fetch a list of URLs in parallel, with a per-call timeout, and cancel the in-flight fetches the moment one fails. (The `fetch` here is simulated — a `sleep` and a canned response — so the example is deterministic and the snippet actually runs. Swapping in a real HTTP client, `http4s`/`sttp` on the Scala side or `http-client`/`req` on the Haskell side, changes none of the concurrency structure.)
+The anchor for this post is a concurrent fetcher: fetch a list of URLs in parallel, with a per-call timeout, and cancel the in-flight fetches the moment one fails. (The `fetch` here is simulated with a `sleep` and a canned response, so the example is deterministic and the snippet actually runs. Swapping in a real HTTP client, `http4s`/`sttp` on the Scala side or `http-client`/`req` on the Haskell side, changes none of the concurrency structure.)
 
 ```scala
 def fetch(url: String): IO[String] =
@@ -357,15 +357,15 @@ fetchAll urls = map orFail <$> mapConcurrently (\u -> timeout 2000000 (fetch u))
   where orFail = maybe "<timed out>" id
 ```
 
-`parTraverse` (Cats Effect) and `mapConcurrently` (Haskell's `async`) are the same combinator: map an effectful function over a list, run all the effects concurrently, collect the results. And both give you cancel-on-first-failure *for free* — that's the structured-concurrency guarantee. When one `fetch` throws, the combinator cancels every sibling that's still in flight and re-raises the error. I verified this in both languages by giving the slow fetches an observable cancellation hook and putting a `/bad` URL in the batch; both printed the cancellations as the siblings were torn down, then surfaced the failure. You don't write the cancellation logic. The combinator owns it, the same way it owns it in Cats Effect.
+`parTraverse` (Cats Effect) and `mapConcurrently` (Haskell's `async`) are the same combinator: map an effectful function over a list, run all the effects concurrently, collect the results. Both also give you cancel-on-first-failure *for free*, which is the structured-concurrency guarantee. When one `fetch` throws, the combinator cancels every sibling that's still in flight and re-raises the error. I verified this in both languages by giving the slow fetches an observable cancellation hook and putting a `/bad` URL in the batch; both printed the cancellations as the siblings were torn down, then surfaced the failure. You don't write the cancellation logic. The combinator owns it, the same way it does in Cats Effect.
 
-The timeout difference from above shows up right here, and the snippets are honest about it. Cats Effect's `.timeout(2.seconds)` raises on expiry, so a timed-out fetch behaves like a failed fetch — it aborts the whole `parTraverse` and cancels the siblings. Haskell's `timeout 2000000` returns `Nothing`, which the code maps to `"<timed out>"`, so a slow fetch is absorbed and the batch carries on. If you want the Haskell version to abort-on-timeout like Cats Effect, you swap `System.Timeout.timeout` for a `race` against a throwing delay, and the two behave identically again. Same primitives, one decision made differently, fixable in one line once you know it's there.
+The timeout difference from above shows up right here, and the snippets don't hide it. Cats Effect's `.timeout(2.seconds)` raises on expiry, so a timed-out fetch behaves like a failed fetch: it aborts the whole `parTraverse` and cancels the siblings. Haskell's `timeout 2000000` returns `Nothing`, which the code maps to `"<timed out>"`, so a slow fetch is absorbed and the batch carries on. If you want the Haskell version to abort on timeout like Cats Effect, swap `System.Timeout.timeout` for a `race` against a throwing delay, and the two behave identically again. Same primitives, one decision made differently, and a one-line fix once you know it's there.
 
-ZIO covers all of this with the same shapes under its own names: `ZIO.foreachPar` for the concurrent map, `race`, and `timeout` (which returns an `Option`, like Haskell, rather than raising). If you've internalized the Cats Effect or Haskell versions, the ZIO ones read on sight — which is a good segue, because ZIO is where the comparison stops being a vocabulary exercise.
+ZIO covers all of this with the same shapes under its own names: `ZIO.foreachPar` for the concurrent map, `race`, and `timeout` (which returns an `Option`, like Haskell, rather than raising). If you've internalized the Cats Effect or Haskell versions, the ZIO ones read on sight. ZIO is also where the comparison stops being a vocabulary exercise.
 
 ## ZIO's R/E/A, and how Haskell spells it
 
-Everything so far has had Cats Effect's `IO[A]` and Haskell's `IO a` as near-perfect mirrors. ZIO breaks the symmetry on purpose. Its effect type is `ZIO[R, E, A]`: an effect that needs an environment `R`, may fail with a typed error `E`, and succeeds with an `A`. Three type parameters instead of one, and the extra two encode things that Cats Effect leaves to convention and Haskell leaves to other tools.
+Everything so far has had Cats Effect's `IO[A]` and Haskell's `IO a` as near-perfect mirrors. ZIO breaks the symmetry on purpose. Its effect type is `ZIO[R, E, A]`: an effect that needs an environment `R`, may fail with a typed error `E`, and succeeds with an `A`. That's three type parameters instead of one, and the extra two encode things that Cats Effect leaves to convention and Haskell leaves to other tools.
 
 Here's a small ZIO program that exercises all three. It needs a `Config` service (`R`), can fail with a typed `AppError` (`E`), and produces an `Int` (`A`):
 
@@ -404,9 +404,9 @@ object ZioRea extends ZIOAppDefault:
 port = 8080
 ```
 
-Read the type `ZIO[Config, AppError, Int]` and you know three things without reading the body: it requires a `Config` to run, the only way it can fail is an `AppError`, and on success you get an `Int`. `ZIO.serviceWithZIO[Config]` reaches into the environment; `.provide(Config.live)` supplies it and the requirement disappears from the type; `ZIO.fail` produces a typed error; `foldZIO` handles both channels. That's real expressive power, and ZIO's inference is tuned to make it feel natural. Dependency injection and typed errors, both in the effect type, both checked by the compiler. It's a coherent and defensible design, and for a lot of teams it's the reason they chose ZIO.
+Read the type `ZIO[Config, AppError, Int]` and you know three things without reading the body: it requires a `Config` to run, the only way it can fail is an `AppError`, and on success you get an `Int`. `ZIO.serviceWithZIO[Config]` reaches into the environment; `.provide(Config.live)` supplies it and the requirement disappears from the type; `ZIO.fail` produces a typed error; `foldZIO` handles both channels. That's real expressive power, and ZIO's inference is tuned to make it feel natural: dependency injection and typed errors, both in the effect type, both checked by the compiler. It's a coherent, defensible design, and for a lot of teams it's the reason they chose ZIO.
 
-Haskell makes the same bet — track the environment and the error in the type — but it doesn't put them in the effect type. It composes them on top of `IO` with monad transformers. The `R` becomes a `ReaderT`, the `E` becomes an `ExceptT`, and the `A` is the result. Here's the same program:
+Haskell makes the same bet (track the environment and the error in the type), but it doesn't put them in the effect type. It composes them on top of `IO` with monad transformers. The `R` becomes a `ReaderT`, the `E` becomes an `ExceptT`, and the `A` is the result. Here's the same program:
 
 ```haskell
 {-# LANGUAGE FlexibleContexts #-}
@@ -441,15 +441,15 @@ bad: Left (MissingKey "port")
 
 The mapping is exact. `R` is `ReaderT Env` and you read it with `ask`/`asks`. `E` is `ExceptT Err` and you raise it with `throwError`. `A` is the success value. `ZIO.provide(layer)` is `runReaderT env`. `foldZIO` over the two channels is pattern-matching the `Either` that `runExceptT` hands back. The type `App a = ReaderT Env (ExceptT Err IO) a` is `ZIO[Env, Err, A]`, written as a stack instead of a triple.
 
-Now the honest part, because this is one of the few places where I don't think Haskell wins outright. ZIO's three-type encoding is genuinely more ergonomic for this. One type, great inference, no transformer stack to assemble and unwrap in the right order, no `lift` when you're three layers deep, and tooling that understands the whole thing. Haskell's MTL approach is more *composable* in theory — each transformer is an independent, reusable piece — but in practice deep stacks get awkward, the ordering matters in ways that surprise people, and performance can suffer from all the wrapping. The Haskell ecosystem knows this, which is why the modern answer is increasingly an effect-handler library — `effectful`, `polysemy`, or `fused-effects` — that gives you ZIO-like "all my effects in one place" ergonomics with a single type and better performance than transformer towers, while keeping the à-la-carte composability. I'm using plain `mtl` here because it's the mainstream baseline and it makes the `R`/`E`/`A` mapping legible; in a real codebase you'd likely pick `effectful` for the same reasons a Scala team picks ZIO.
+This is one of the few places where I don't think Haskell wins outright. ZIO's three-type encoding is more ergonomic for this. One type, great inference, no transformer stack to assemble and unwrap in the right order, no `lift` when you're three layers deep, and tooling that understands the whole thing. Haskell's MTL approach is more *composable* in theory, since each transformer is an independent, reusable piece. In practice, deep stacks get awkward, the ordering matters in ways that surprise people, and performance can suffer from all the wrapping. The Haskell ecosystem knows this, which is why the modern answer is increasingly an effect-handler library (`effectful`, `polysemy`, or `fused-effects`). These give you ZIO-like "all my effects in one place" ergonomics with a single type and better performance than transformer towers, while keeping the à-la-carte composability. I'm using plain `mtl` here because it's the mainstream baseline and it makes the `R`/`E`/`A` mapping easy to see; in a real codebase you'd likely pick `effectful` for the same reasons a Scala team picks ZIO.
 
-So this is the genuine trade-off, not a verdict. ZIO bakes the environment and error into the effect type and gets inference and a unified model for it. Haskell spreads them across tools — transformers, or an effect-handler library — and gets composability and coherence with the rest of the language, at some cost in ergonomics and a real choice to make about which library. The deeper type-level machinery underneath all of this — tagless final, free monads, the type families that make effect systems tick — is a subject of its own, and deserves more than a paragraph.
+So it's a trade-off, not a verdict. ZIO bakes the environment and error into the effect type and gets inference and a unified model for it. Haskell spreads them across tools (transformers, or an effect-handler library) and gets composability and coherence with the rest of the language, at some cost in ergonomics and with a real choice to make about which library. The type-level machinery underneath all of this (tagless final, free monads, the type families that make effect systems tick) is a subject of its own and deserves more than a paragraph.
 
 ## Where this is going
 
-The thesis at the top was that Cats Effect's `IO` is Haskell's `IO` ported to the JVM, and that once you delete `Future`, the gap is mostly tooling. We've now watched that hold across the whole surface. `IO` is a lazy, referentially transparent description in both, run at the edge. Errors are an effect in both, with `try`/`attempt` and `catch`/`handleErrorWith` lining up almost word for word — and `Try` turned out to be `IO (Either SomeException a)`, produced by a combinator rather than shipped as a type. `bracket`, `Ref`, `STM`, `race`, `timeout`, and concurrent-map-with-cancellation are the same primitives wearing different names. The single real divergence — `timeout` raising versus returning — is one line to reconcile. And ZIO's `R/E/A` is the one place the languages make a different bet, which Haskell answers with `ReaderT`/`ExceptT` or an effect-handler library, trading ergonomics for composability in a way that's an honest draw.
+The thesis at the top was that Cats Effect's `IO` is Haskell's `IO` ported to the JVM, and that once you delete `Future`, the gap is mostly tooling. That held across the whole surface. `IO` is a lazy, referentially transparent description in both, run at the edge. Errors are an effect in both, with `try`/`attempt` and `catch`/`handleErrorWith` lining up almost word for word, and `Try` turned out to be `IO (Either SomeException a)`, produced by a combinator rather than shipped as a type. `bracket`, `Ref`, `STM`, `race`, `timeout`, and concurrent-map-with-cancellation are the same primitives under different names. The one real divergence, `timeout` raising versus returning, takes one line to reconcile. ZIO's `R/E/A` is the one place the languages make different bets. Haskell answers it with `ReaderT`/`ExceptT` or an effect-handler library, trading ergonomics for composability, and I call that an honest draw.
 
-Two things this post didn't weigh. The JVM is a real operational asset — mature profilers, a scheduler that's been hammered on for twenty years, and a deployment story a lot of teams already run. Haskell's runtime is excellent at lightweight concurrency and its STM is the real thing, but the operational tooling around it is thinner. And `Future` deserves one more kind word: for fire-and-forget async on the standard library, with no dependencies, it's fine — it's only the wrong foundation for *composable* effects, which is a different job than the one it was built for.
+Two things this post didn't weigh. The JVM is a real operational asset: mature profilers, a scheduler that's been hammered on for twenty years, and a deployment story a lot of teams already run. Haskell's runtime is excellent at lightweight concurrency and its STM is the real thing, but the operational tooling around it is thinner. And `Future` deserves one more kind word: for fire-and-forget async on the standard library, with no dependencies, it's fine. It's only the wrong foundation for *composable* effects, which is a different job from the one it was built for.
 
 ---
 
