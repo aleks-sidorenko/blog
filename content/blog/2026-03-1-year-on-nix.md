@@ -104,7 +104,7 @@ This one block installs tmux, installs these plugins, and applies this configura
 
 ## One config, two platforms
 
-I didn't expect this part: I now manage both NixOS (my personal machine) and macOS (my work machine) from the [same repository](https://github.com/aleks-sidorenko/nix-config).
+I didn't expect this part: I now manage both NixOS (my personal machine) and macOS (my work machine) from the [same repository](https://github.com/aleks-sidorenko/nix-config/tree/v1).
 
 The shared parts (shell config, Git settings, editor setup, CLI tools) are defined once and used everywhere. Platform-specific pieces (Linux services, macOS defaults) live in separate modules that only activate on the right system.
 
