@@ -14,6 +14,8 @@ For a while, that was exactly what I did. Then I tried to bring the same declara
 
 <!-- more -->
 
+> This post describes v1 of nix-routeros (tag `v1.0.0`). v2 changed the option set and dropped the bundled runner; see [nix-routeros v2: a library, not a framework](/blog/2026/11/nix-routeros-v2).
+
 ## Attempt 1: Export everything, import everything
 
 My first idea was simple. RouterOS has an `/export` command that dumps the entire router configuration as a script. I ran it, saved the output, and committed it to Git. Then I wrote a Nix derivation that would take this exported script and push it back to the router. Version control for my router config: done.
@@ -46,16 +48,16 @@ Testing was awkward too. I couldn't build or validate the router modules without
 
 ## Attempt 3: nix-routeros
 
-The third attempt took everything I'd learned and extracted it into a standalone flake: [nix-routeros](https://github.com/aleks-sidorenko/nix-routeros).
+The third attempt took everything I'd learned and extracted it into a standalone flake: [nix-routeros](https://github.com/aleks-sidorenko/nix-routeros/tree/v1.0.0).
 
 The idea is to bring the NixOS module system to RouterOS. You declare what your router should look like using typed options. The flake generates Terraform JSON and gives you scripts to plan and apply changes. Your router configuration becomes a Nix expression that you can compose, type-check, and diff.
 
-It keeps what worked in attempt 2 (incremental changes, plan-before-apply, modular structure) and fixes what didn't. The modules are now generic, reusable, and fully decoupled from my personal config. My actual router configuration is just a thin `router.nix` that imports the flake and sets values specific to my network.
+It keeps what worked in attempt 2 (incremental changes, plan-before-apply, modular structure) and fixes what didn't. The modules are now generic, reusable, and fully decoupled from my personal config. My [actual router configuration](https://github.com/aleks-sidorenko/nix-config/tree/v1/infra/router) is just a thin `router.nix` that imports the flake and sets values specific to my network.
 
 ### Getting started
 
 ```bash
-nix flake init -t github:aleks-sidorenko/nix-routeros
+nix flake init -t github:aleks-sidorenko/nix-routeros/v1.0.0
 ```
 
 This gives you a `flake.nix` and a `router.nix` to edit. Here's what a minimal configuration looks like:
