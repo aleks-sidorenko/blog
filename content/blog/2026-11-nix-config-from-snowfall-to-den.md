@@ -162,9 +162,8 @@ den.hosts.aarch64-darwin.workbook = {
   # The org names the account; the person is the same.
   users.alexander.userName = "oleksandrsy";
   settings = {
-    services.openvpn.connections.kpi.profileSecret = "system-vpn-kpi-profile";
     services.tailscale.tags = [ "tag:workstation" ];
-    dev.stacks.node.npmRegistry = "https://npm.dev.wixpress.com/api/npm/npm-repos/";
+    # ...plus the work VPN and the company's npm registry
   };
 };
 ```
@@ -178,8 +177,7 @@ A role is an aspect with nothing but `includes`. Each machine's feature set read
 ```nix
 den.aspects.workbook.includes = [
   den.aspects.roles.workstation
-  den.aspects.services.openvpn
-  den.aspects.dev.akeyless
+  # ...plus the employer's VPN and secrets CLI
 ];
 ```
 
