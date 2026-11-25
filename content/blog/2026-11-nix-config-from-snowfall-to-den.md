@@ -1,14 +1,14 @@
 +++
 title = "Moving My nix-config from Snowfall to den"
 date = 2026-11-20
-description = "Why I rewrote my whole nix-config, from the Mac to the home server to the Terraform stacks, from Snowfall lib to den and the dendritic pattern."
+description = "Snowfall lib is unmaintained and its layout fought me, so I rewrote my whole nix-config, from the Mac to the home server to the Terraform stacks, on den and the dendritic pattern."
 path = "blog/2026/11/nix-config-from-snowfall-to-den"
 [taxonomies]
 tags = ["nix", "den", "infrastructure"]
 categories = ["programming"]
 +++
 
-When I wrote [1 Year on Nix](/blog/2026/03/1-year-on-nix), my [nix-config](https://github.com/aleks-sidorenko/nix-config/tree/snowfall) was built on [Snowfall lib](https://github.com/snowfallorg/lib). It had served me well: it gave a new Nix user a structure to follow. But as the config grew, more of my changes were working around that structure than using it.
+When I wrote [1 Year on Nix](/blog/2026/03/1-year-on-nix), my [nix-config](https://github.com/aleks-sidorenko/nix-config/tree/snowfall) was built on [Snowfall lib](https://github.com/snowfallorg/lib). It had served me well: it gave a new Nix user a structure to follow. But as the config grew, more of my changes were working around that structure than using it, and then Snowfall itself stopped being maintained.
 
 This month I rewrote all of it on [den](https://den.denful.dev), an aspect-oriented framework for the [dendritic pattern](https://github.com/mightyiam/dendritic): my work MacBook, the home server and its test VMs, the installer image, and the Terraform stacks for DNS, the tailnet, storage, GitHub repos, and the router. This post covers why, what changed, and how I moved everything without breaking the machines I use every day.
 
@@ -81,6 +81,12 @@ A feature often needs something from another feature. A server service needs its
 My Terraform stacks lived next to Snowfall, not inside it, with their own helpers in `lib/terraform`. They couldn't use the module structure the hosts had, so they talked to hosts through `lib/defaults` too.
 
 None of these were bugs in Snowfall. They are the natural limits of a layout organized by platform and switched on by flags.
+
+### Nobody is maintaining it
+
+The deciding reason wasn't design. In July, Snowfall Lib's README gained a [call for maintainers](https://github.com/snowfallorg/lib#call-for-maintainers-) saying the project "has been effectively unmaintained for some time now". The last code change was in December 2025. Issues keep coming in, including one where current nixpkgs breaks generated NixOS hosts, and nobody is there to merge fixes.
+
+A framework that owns how your whole flake is assembled is the worst kind of dependency to have abandoned. Every NixOS release is a chance for it to break, and when it does, you're the one patching it. I could live with the layout problems. I didn't want my whole system to rest on a library that wouldn't keep up with nixpkgs.
 
 ## What den does differently
 
