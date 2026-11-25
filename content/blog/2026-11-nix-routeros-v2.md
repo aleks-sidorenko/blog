@@ -8,7 +8,7 @@ tags = ["nix", "networking", "mikrotik", "infrastructure"]
 categories = ["programming"]
 +++
 
-In March I wrote about [managing my MikroTik router with Nix](/blog/2026/03/managing-mikrotik-with-nix) and the third attempt that became [nix-routeros](https://github.com/aleks-sidorenko/nix-routeros/tree/v1.0.0). Since then I've moved my [nix-config](https://github.com/aleks-sidorenko/nix-config) from Snowfall to [den](https://github.com/denful/den), and the router had to move with it. v1 didn't fit, and the reasons it didn't fit turned into [nix-routeros v2](https://github.com/aleks-sidorenko/nix-routeros/tree/v2.0.0).
+In March I wrote about [managing my MikroTik router with Nix](/blog/2026/03/managing-mikrotik-with-nix) and the third attempt that became [nix-routeros](https://github.com/aleks-sidorenko/nix-routeros/tree/v1.0.0). Since then I've [moved my nix-config from Snowfall to den](/blog/2026/11/nix-config-from-snowfall-to-den), and the router had to move with it. v1 didn't fit, and the reasons it didn't fit turned into [nix-routeros v2](https://github.com/aleks-sidorenko/nix-routeros/tree/v2.0.0).
 
 v2 is a breaking release. In one sentence: v1 was a framework that ran your router, and v2 is a library of modules that describes it.
 
