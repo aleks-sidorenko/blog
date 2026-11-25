@@ -18,13 +18,13 @@ This month I rewrote all of it on [den](https://den.denful.dev), an aspect-orien
 
 Snowfall is convention over configuration. You put files in the right directories and it wires them up: `systems/aarch64-darwin/workbook` becomes a nix-darwin host, `homes/aarch64-darwin/oleksandrsy@workbook` becomes a home-manager config, and everything under `modules/nixos`, `modules/darwin`, and `modules/home` is imported automatically. For someone coming from Ubuntu and a dotfiles repo, that was exactly right. I didn't have to understand flake outputs to get a working machine.
 
-The problems showed up later, once one repo described a Mac, a NixOS server, VMs, an ISO, and a handful of cloud stacks.
+The problems showed up once the repo described a Mac, a NixOS server, VMs, an ISO, and a handful of cloud stacks.
 
 ## Where it hurt
 
 ### Features split by platform
 
-Snowfall sorts modules by *where they run*: 36 files under `modules/darwin`, 88 under `modules/nixos`, 129 under `modules/home`. That sounds tidy until one feature runs in more than one place. Tailscale ran on both the Mac and the server, so it lived in two files:
+Snowfall sorts modules by *where they run*: 36 files under `modules/darwin`, 88 under `modules/nixos`, 129 under `modules/home`. That breaks down as soon as a feature runs in more than one place. Tailscale ran on both the Mac and the server, so it lived in two files:
 
 ```text
 modules/darwin/services/networking/tailscale/default.nix
@@ -66,11 +66,11 @@ ${namespace} = {
 };
 ```
 
-Every module was imported on every host and switched off by default. The question "what does this machine have?" was answered by booleans scattered across files instead of a list.
+Every module was imported on every host and switched off by default. To answer "what does this machine have?", I had to collect booleans from several files.
 
 ### A global grab bag
 
-Anything two modules needed to agree on ended up in `lib/defaults`: the username, locales, the persistence root, the Cloudflare account, the backup bucket, the LAN subnet, and every host's IP and MAC. It started as a few constants and became the place where everything was coupled to everything. The router stack read `defaults.network.hosts`. The restic module and the storage stack both read `defaults.backup.bucket` "so the two can't drift". The comment was right, but a global was the only tool I had for it.
+Anything two modules needed to agree on ended up in `lib/defaults`: the username, locales, the persistence root, the Cloudflare account, the backup bucket, the LAN subnet, and every host's IP and MAC. It started as a few constants and ended up coupling most modules to each other. The router stack read `defaults.network.hosts`. The restic module and the storage stack both read `defaults.backup.bucket` "so the two can't drift". The comment was right, but a global was the only tool I had for it.
 
 ### Cross-cutting data had no home
 
@@ -80,17 +80,17 @@ A feature often needs something from another feature. A server service needs its
 
 My Terraform stacks lived next to Snowfall, not inside it, with their own helpers in `lib/terraform`. They couldn't use the module structure the hosts had, so they talked to hosts through `lib/defaults` too.
 
-None of these were bugs in Snowfall. They are the natural limits of a layout organized by platform and switched on by flags.
+All of these follow from a layout that sorts modules by platform and turns features on with flags. Snowfall does what it was designed to do.
 
 ### Nobody is maintaining it
 
-The deciding reason wasn't design. In July, Snowfall Lib's README gained a [call for maintainers](https://github.com/snowfallorg/lib#call-for-maintainers-) saying the project "has been effectively unmaintained for some time now". The last code change was in December 2025. Issues keep coming in, including one where current nixpkgs breaks generated NixOS hosts, and nobody is there to merge fixes.
+What decided it was maintenance. In July, Snowfall Lib's README gained a [call for maintainers](https://github.com/snowfallorg/lib#call-for-maintainers-) saying the project "has been effectively unmaintained for some time now". The last code change was in December 2025. Issues keep coming in, including one where current nixpkgs breaks generated NixOS hosts, and nobody is there to merge fixes.
 
-A framework that owns how your whole flake is assembled is the worst kind of dependency to have abandoned. Every NixOS release is a chance for it to break, and when it does, you're the one patching it. I could live with the layout problems. I didn't want my whole system to rest on a library that wouldn't keep up with nixpkgs.
+Snowfall assembles the whole flake, so if a NixOS release breaks it, every machine stops building and I'm the one patching it. I could live with the layout problems, but not with my whole system depending on a library that no longer keeps up with nixpkgs.
 
 ## What den does differently
 
-den organizes the config by *aspect*. An aspect is a feature, like `services.tailscale` or `gui.chrome`, and one aspect holds everything that feature means, for every place it applies: NixOS, nix-darwin, home-manager, and Terraform. Hosts don't enable aspects. They *include* them, directly or through roles.
+den organizes the config by *aspect*. An aspect is a feature, like `services.tailscale` or `gui.chrome`, and one aspect holds everything that feature means, for every place it applies: NixOS, nix-darwin, home-manager, and Terraform. Hosts include aspects, directly or through roles, instead of enabling them.
 
 ### One feature, one file
 
@@ -125,7 +125,7 @@ den.aspects.gui.raycast = {
 };
 ```
 
-Categories name a concern, never a platform: `cli` for terminal tools, `dev` for working on code, `gui` for apps, `services` for daemons. An aspect with only a `darwin` body is fine. It still lives where its concern does.
+Categories name a concern, never a platform: `cli` for terminal tools, `dev` for working on code, `gui` for apps, `services` for daemons. An aspect with only a `darwin` body still goes in `gui` or `cli`.
 
 ### Every file is a module
 
@@ -161,7 +161,7 @@ Impermanence collects `persist`, nginx turns `vhosts` into virtual hosts, restic
 
 ### Settings belong to the aspect that reads them
 
-Instead of a global `defaults`, each tunable is a setting of the aspect that reads it, and a host sets only what differs. The workbook's host definition is mostly the things that are actually specific to a work laptop:
+Instead of a global `defaults`, each tunable is a setting of the aspect that reads it, and a host sets only what differs. The workbook's host definition is mostly what's specific to a work laptop:
 
 ```nix
 den.hosts.aarch64-darwin.workbook = {
@@ -187,7 +187,7 @@ den.aspects.workbook.includes = [
 ];
 ```
 
-The server's side looks the same, just a different tree:
+The server has its own tree:
 
 ```text
 roles.home-server
@@ -221,12 +221,12 @@ Every step had to produce the same result as the tree it replaced, and each kind
 
 **The workbook: eval tests on what matters.** There's no VM for a Mac, so the tests pin the evaluated config instead: the fish abbreviations and plugins, the Dock layout, network service names, and the decisions I made along the way. One test asserts that no JDK or Node reaches the global environment, because toolchains are now per project (`use_stack jvm` in a project's `.envrc`) instead of global. Another pins the apps I deliberately dropped, so they don't sneak back in.
 
-**The stacks: rendered config.** Each stack's rendered Terraform JSON is compared with the one Snowfall last applied, so the port couldn't quietly change anything the stacks manage.
+**The stacks: rendered config.** Each stack's rendered Terraform JSON is compared with the one Snowfall last applied, so a port that changed a managed resource would fail the check.
 
-It still wasn't perfect. On the workbook, Nix ended up behind Homebrew on `PATH`, and `nh` lost track of the flake. On the server, home-manager failed because a setting from the old config had been dropped, and FlareSolverr couldn't start without fontconfig. All were small fixes, and all now have tests. The ones the tests missed were the ones that depended on the real machine, which is a good reminder of what tests can't cover.
+It still wasn't perfect. On the workbook, Nix ended up behind Homebrew on `PATH`, and `nh` lost track of the flake. On the server, home-manager failed because a setting from the old config had been dropped, and FlareSolverr couldn't start without fontconfig. The tests missed all four. They were small fixes, and each now has a test.
 
 ## What it costs
 
 den is young. The concepts (aspects, quirks, policies, entities) take time to learn, and the documentation is improving, but you'll still read source code. Snowfall's "put a file here" is easier on day one.
 
-But day one isn't where I spend my time. With Snowfall, the structure was something I worked around. With den, adding an app to the Mac or a service to the server is one file that says what it is and what it needs, and removing it means deleting that file. That is the same thing that pulled me to Nix in the first place: describe the system instead of patching it.
+After day one, though, I spent most of my time working around Snowfall's structure. With den, adding an app to the Mac or a service to the server is one file that says what it is and what it needs, and removing it means deleting that file.

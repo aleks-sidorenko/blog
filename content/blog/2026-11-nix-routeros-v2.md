@@ -10,13 +10,13 @@ categories = ["programming"]
 
 In March I wrote about [managing my MikroTik router with Nix](/blog/2026/03/managing-mikrotik-with-nix) and the third attempt that became [nix-routeros](https://github.com/aleks-sidorenko/nix-routeros/tree/v1.0.0). Since then I've [moved my nix-config from Snowfall to den](/blog/2026/11/nix-config-from-snowfall-to-den), and the router had to move with it. v1 didn't fit, and the reasons it didn't fit turned into [nix-routeros v2](https://github.com/aleks-sidorenko/nix-routeros/tree/v2.0.0).
 
-v2 is a breaking release. In one sentence: v1 was a framework that ran your router, and v2 is a library of modules that describes it.
+v2 is a breaking release. v1 shipped the tooling that ran your router; v2 is only the modules that describe it, and you run them with whatever you already use.
 
 <!-- more -->
 
 ## What moving to den exposed
 
-In den you don't organize a config by machine. You organize it by *aspect*: a feature like "SSH", "Wi-Fi", or "the router stack" that can contribute to NixOS, home-manager, and Terraform at once. Each file is a flake-parts module (the dendritic pattern), and hosts pick the aspects they include. Infrastructure that isn't a machine (DNS zones, the tailnet, storage buckets, GitHub repo settings) lives in terranix *stacks* built the same way.
+den organizes a config by *aspect*: a feature like SSH or Wi-Fi that can contribute to NixOS, home-manager, and Terraform at once. Infrastructure that isn't a machine (DNS zones, the tailnet, storage buckets, GitHub repo settings) lives in terranix *stacks* built from aspects too. The [den post](/blog/2026/11/nix-config-from-snowfall-to-den) has the details.
 
 By the time I got to the router, I had four other stacks running on a shared terranix setup in nix-config. It already handled secrets, state encryption, and the plan/apply scripts. Porting the router showed three places where v1 was in the way.
 
@@ -34,7 +34,7 @@ modules = [
 ];
 ```
 
-When a library's main entry point gets bypassed by its only user, the entry point is in the wrong place.
+I was the library's only user, and I had stopped using its main entry point.
 
 ### Hosts in the wrong place
 
@@ -42,11 +42,11 @@ In March I called `hosts` "the most important design decision": define a host on
 
 ### Opinions about my network
 
-The v1 `router` preset came with defaults: a `.local` domain, upstream DNS, CAPsMAN for Wi-Fi, and no notion of which device you own. Defaults like these are fine until they're wrong, and then you `mkForce` your way around them. A library that other people can use shouldn't guess your subnet or your country.
+The v1 `router` preset came with defaults: a `.local` domain, upstream DNS, CAPsMAN for Wi-Fi, and no notion of which device you own. When one of them is wrong for your network, you end up overriding it with `mkForce`. A library that other people can use shouldn't guess your subnet or your country.
 
 ## What's new in v2
 
-The [README](https://github.com/aleks-sidorenko/nix-routeros/tree/v2.0.0#readme) has the full option reference. Here are the parts that matter.
+The [README](https://github.com/aleks-sidorenko/nix-routeros/tree/v2.0.0#readme) has the full option reference. The main changes follow.
 
 ### Just terranix modules
 
@@ -128,7 +128,7 @@ routeros.device = {
 };
 ```
 
-The profile drives a lot. It picks the Wi-Fi stack (the newer `wifi` package or the legacy `wireless` one), knows which radio is on which band, and knows whether there's a USB port for an LTE modem. That replaces the CAPsMAN module from v1 with plain access points on the device's own radios.
+The profile picks the Wi-Fi stack (the newer `wifi` package or the legacy `wireless` one), knows which radio is on which band, and knows whether there's a USB port for an LTE modem. That replaces the CAPsMAN module from v1 with plain access points on the device's own radios.
 
 ### Uplinks with failover
 
@@ -152,7 +152,7 @@ routeros.uplinks = {
 
 Each uplink gets a default route with `check_gateway=ping` towards its `check.host`, and that host is reachable only through that uplink via a `/32` route. The lowest-distance uplink whose check passes carries traffic; when it fails, the next one takes over. The kinds are `ethernet`, `lte`, `pppoe`, and `wifi-station`, which turns one radio into a Wi-Fi client. My own router uses that one, since its internet arrives over Wi-Fi.
 
-### Checks that fail evaluation, not the router
+### Checks at evaluation time
 
 This is the part I'm happiest with. terranix has no `assertions`, so v2 collects its own internal list of checks and forces them during evaluation. A violated check aborts `nix build` with a message that names the option:
 
@@ -163,7 +163,7 @@ routeros.uplinks fiber, backup share distance 1; equal distances balance traffic
 routeros.lan.ports includes uplink interfaces ether1; bridging them joins the WAN to the LAN
 ```
 
-Every one of these is a mistake I either made or nearly made. In v1 they would have reached the router, and some of them would have cut off the session I was applying from. Other checks cover leases outside the subnet or on the router's own address, duplicate MACs, an LTE uplink on a device without USB, and two names that would render to the same Terraform resource key and silently overwrite each other.
+In v1, mistakes like these would have reached the router, and some of them would have cut off the session I was applying from. Other checks cover leases outside the subnet or on the router's own address, duplicate MACs, an LTE uplink on a device without USB, and two names that would render to the same Terraform resource key and silently overwrite each other.
 
 The library also has a real test suite now: about 1,500 lines of evaluation tests, including negative tests that assert each check's exact message. `just validate` runs `tofu validate` on the rendered config for every device profile.
 
@@ -215,7 +215,7 @@ sameSsid =
   == config.infraStacks.router.config.resource.routeros_wifi_configuration.home.ssid;
 ```
 
-None of this is in nix-routeros, and that's the point. The library knows how to configure a MikroTik. My config knows which machines I own. v1 mixed the two. v2 keeps them apart.
+None of this is in nix-routeros. The library knows how to configure a MikroTik, and my config knows which machines I own; in v1, both lived in the router config.
 
 ## Migrating from v1
 
@@ -238,6 +238,4 @@ Resource keys changed too, so expect the first v2 plan against existing state to
 
 ## What changed
 
-v1 tried to be the whole toolchain: modules, presets, secrets, state, and scripts. That made a standalone repo pleasant, but it got in the way once the router became one stack among several. v2 does less. It turns `routeros.*` options into Terraform JSON, refuses configs it knows are broken, and leaves running, secrets, and site facts to you.
-
-That's the same lesson den taught me about my machines: keep each piece small and let composition do the rest.
+v1 tried to be the whole toolchain: modules, presets, secrets, state, and scripts. That made a standalone repo pleasant, but it got in the way once the router became one stack among several. v2 does less. It turns `routeros.*` options into Terraform JSON, refuses configs it knows are broken, and leaves running, secrets, and site facts to you. In my setup those come from nix-config, the same way they do for the DNS and tailnet stacks.
